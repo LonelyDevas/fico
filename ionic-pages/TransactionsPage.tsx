@@ -283,7 +283,7 @@ export function TransactionsPage() {
               <div className="lg:col-span-1">
                 <div className="space-y-4">
                   {/* Mobile: opens filters in a sheet */}
-                  <div className="lg:hidden">
+                  <div className="lg:hidden space-y-3">
                     <Button
                       variant="outline"
                       className="w-full gap-2 justify-center rounded-full"
@@ -291,6 +291,13 @@ export function TransactionsPage() {
                     >
                       <Filter className="w-4 h-4" />
                       Filters
+                    </Button>
+                    <Button
+                      className="w-full gap-2 justify-center rounded-full"
+                      onClick={() => setShowCreateModal(true)}
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Transaction
                     </Button>
                   </div>
 

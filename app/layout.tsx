@@ -16,6 +16,7 @@ import '@ionic/react/css/core.css'
 
 import './globals.css'
 import DevErrorOverlay from '@/components/DevErrorOverlay'
+import { Agentation } from 'agentation'
 // Using global fonts from `globals.css` instead of next/font to allow
 // the repo's configured font stack (Inter + Poppins) to take effect.
 
@@ -95,6 +96,7 @@ export default function RootLayout({
             {/* DEBUG: temporary visible marker to verify server-rendered HTML */}
             {/* <div style={{ position: 'fixed', top: 8, right: 8, background: '#ff0', color: '#000', padding: '6px 8px', zIndex: 9999, borderRadius: 4 }}>SSR OK</div> */}
             {/* <DevDomGuard /> */}
+            <Agentation />
           </>
         )}
         <InitialLoader />

@@ -16,9 +16,11 @@ import {
   Home,
 } from 'lucide-react'
 import { useThemeStore } from '@/store/theme-store'
-import { useAuthStore } from '@/store/auth-store'
+import { useAuthStore, useUser } from '@/store/auth-store'
 import { useLogout } from '@/queries/auth/auth'
 import { BottomTabBar } from '@/components/nav/bottom-tab-bar'
+
+const getInitial = (value?: string) => (value ? value.trim().charAt(0).toUpperCase() : 'U')
 
 const navItems = [
   { label: 'Dashboard', href: '/dashboard', icon: <Home className="w-4 h-4" /> },
@@ -34,6 +36,7 @@ export default function DNavbar() {
   const history = useHistory()
   const location = useLocation()
   const { isDarkMode, toggleDarkMode } = useThemeStore()
+  const user = useUser()
   const clearAuth = useAuthStore((state) => state.clearAuth)
   const { mutate: logout } = useLogout()
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -130,17 +133,17 @@ export default function DNavbar() {
                   className="flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground font-semibold hover:shadow-md transition-all text-sm"
                   title="User menu"
                 >
-                  U
+                  {getInitial(user?.username || user?.email)}
                 </button>
 
                 {showUserMenu && (
                   <div className="absolute right-0 mt-2 w-56 bg-card border border-border rounded-2xl shadow-ios-lg py-2 z-50 divide-y divide-border">
                     <div className="px-4 py-3">
-                      <p className="text-sm font-semibold text-foreground">User Account</p>
-                      <p className="text-xs text-muted-foreground">user@example.com</p>
+                      <p className="truncate text-sm font-semibold text-foreground">{user?.username || 'Account'}</p>
+                      <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
                     </div>
                     <div className="py-2">
-                      <button onClick={() => go('/settings')} className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors flex items-center gap-3">
+                      <button onClick={() => go('/profile')} className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors flex items-center gap-3">
                         <User className="w-4 h-4" />
                         Profile
                       </button>

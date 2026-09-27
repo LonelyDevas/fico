@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -7,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, X } from 'lucide-react'
+import { ChevronDown, Search, X } from 'lucide-react'
 import { BillStatus, BillType, PaymentStatus } from '@/types/bill'
 
 export interface BillsFilterState {
@@ -26,6 +28,8 @@ interface BillsFiltersProps {
 }
 
 export function BillsFilters({ filters, onChange, onReset }: BillsFiltersProps) {
+  const [isOpen, setIsOpen] = useState(false)
+
   const updateFilter = <K extends keyof BillsFilterState>(key: K, value: BillsFilterState[K]) => {
     onChange({ ...filters, [key]: value })
   }
@@ -39,35 +43,56 @@ export function BillsFilters({ filters, onChange, onReset }: BillsFiltersProps) 
 
   return (
     <div className="bg-card border border-border rounded-2xl p-4 shadow-ios sm:p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-foreground">Filter Bills</h2>
-        {activeFilterCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={onReset} className="text-destructive hover:text-destructive">
-            Clear
-          </Button>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between"
+        aria-expanded={isOpen}
+      >
+        <span className="flex items-center gap-2">
+          <h2 className="text-base font-semibold text-foreground">Filter Bills</h2>
+          {activeFilterCount > 0 && <Badge variant="secondary">{activeFilterCount}</Badge>}
+        </span>
+        <span className="flex items-center gap-1">
+          {activeFilterCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(event) => {
+                event.stopPropagation()
+                onReset()
+              }}
+              className="text-destructive hover:text-destructive"
+            >
+              Clear
+            </Button>
+          )}
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
 
-      <div className="relative">
-        <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-        <Input
-          value={filters.search}
-          onChange={(event) => updateFilter('search', event.target.value)}
-          placeholder="Search by bill name..."
-          className="pl-9 pr-9"
-        />
-        {filters.search && (
-          <button
-            type="button"
-            onClick={() => updateFilter('search', '')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
+      {isOpen && (
+        <>
+          <div className="relative">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              value={filters.search}
+              onChange={(event) => updateFilter('search', event.target.value)}
+              placeholder="Search by bill name..."
+              className="pl-9 pr-9"
+            />
+            {filters.search && (
+              <button
+                type="button"
+                onClick={() => updateFilter('search', '')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <Select value={filters.type} onValueChange={(value) => updateFilter('type', value as BillsFilterState['type'])}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Type" />
@@ -126,7 +151,9 @@ export function BillsFilters({ filters, onChange, onReset }: BillsFiltersProps) 
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

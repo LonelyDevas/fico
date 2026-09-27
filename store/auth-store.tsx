@@ -3,6 +3,8 @@ import { AccessToken } from '@/types/auth';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App } from '@capacitor/app';
 import { supabase } from '@/utils/supabase-client';
 
 
@@ -108,9 +110,28 @@ export function useSupabaseAuthSync() {
       syncFromSession(session);
     });
 
+    // supabase-js's built-in auto-refresh timer relies on browser tab
+    // visibility events, which don't fire reliably inside a Capacitor
+    // WebView. Per Supabase's own native-app guidance, drive refresh off
+    // the app's own foreground/background lifecycle instead, or the access
+    // token silently expires while backgrounded with nothing to renew it.
+    let removeAppStateListener: (() => void) | undefined;
+    if (Capacitor.isNativePlatform()) {
+      App.addListener('appStateChange', ({ isActive }) => {
+        if (isActive) {
+          supabase.auth.startAutoRefresh();
+        } else {
+          supabase.auth.stopAutoRefresh();
+        }
+      }).then((handle) => {
+        removeAppStateListener = () => handle.remove();
+      });
+    }
+
     return () => {
       cancelled = true;
       listener.subscription.unsubscribe();
+      removeAppStateListener?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

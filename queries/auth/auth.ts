@@ -163,6 +163,43 @@ export const useOAuthLogin = () => {
   });
 };
 
+// ─── Profile ────────────────────────────────────────────────────────────
+
+const updateUsernameSupabase = async (userId: string, username: string) => {
+  const { error } = await supabase.from('profiles').update({ username }).eq('id', userId);
+  if (error) throw error;
+  return { message: 'success' };
+};
+
+export const useUpdateUsername = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, username }: { userId: string; username: string }) =>
+      updateUsernameSupabase(userId, username),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth'] });
+    },
+    onError: (error) => {
+      handleApiError(error);
+    },
+  });
+};
+
+const updatePasswordSupabase = async (password: string) => {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+  return { message: 'success' };
+};
+
+export const useUpdatePassword = () => {
+  return useMutation({
+    mutationFn: (password: string) => updatePasswordSupabase(password),
+    onError: (error) => {
+      handleApiError(error);
+    },
+  });
+};
+
 export const checkReferral = async (id: string): Promise<any> => {
   const response = await axiosInstance.get("/auth/getreferralusername", { params: { id } });
   return response.data;

@@ -18,6 +18,7 @@ import BillsPage from '@/ionic-pages/BillsPage';
 import BudgetsPage from '@/ionic-pages/BudgetsPage';
 import CategoriesPage from '@/ionic-pages/CategoriesPage';
 import SettingsPage from '@/ionic-pages/SettingsPage';
+import ProfilePage from '@/ionic-pages/ProfilePage';
 import { TransactionsPage } from '@/ionic-pages/TransactionsPage';
 import { WalletsPage } from '@/ionic-pages/WalletsPage';
 
@@ -50,6 +51,7 @@ function AppShellInner() {
           <Route exact path="/budgets" component={BudgetsPage} />
           <Route exact path="/categories" component={CategoriesPage} />
           <Route exact path="/settings" component={SettingsPage} />
+          <Route exact path="/profile" component={ProfilePage} />
           <Route exact path="/">
             {!isAuthLoading && <Redirect to={isAuthenticated ? '/dashboard' : '/signin'} />}
           </Route>

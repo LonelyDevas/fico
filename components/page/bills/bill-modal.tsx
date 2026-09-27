@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
   SheetContent,
@@ -190,20 +193,18 @@ export function BillModal({ open, onClose, onSuccess, bill }: BillModalProps) {
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 space-y-5 overflow-y-auto p-6">
           {/* Type Selector */}
           {!isEdit && (
-            <div className="flex gap-2 p-1 bg-secondary/40 rounded-lg">
+            <div className="flex gap-2">
               {(['bill', 'income'] as BillType[]).map((t) => (
-                <button
+                <Badge
                   key={t}
-                  type="button"
-                  onClick={() => handleSelectChange('type', t)}
-                  className={`flex-1 py-2 rounded-md text-sm font-semibold capitalize transition-all ${
-                    formData.type === t
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
+                  asChild
+                  variant={formData.type === t ? 'default' : 'outline'}
+                  className="cursor-pointer rounded-full px-4 py-1.5 text-sm"
                 >
-                  {t === 'bill' ? 'Bill / Expense' : 'Income'}
-                </button>
+                  <button type="button" onClick={() => handleSelectChange('type', t)}>
+                    {t === 'bill' ? 'Bill / Expense' : 'Income'}
+                  </button>
+                </Badge>
               ))}
             </div>
           )}
@@ -304,14 +305,11 @@ export function BillModal({ open, onClose, onSuccess, bill }: BillModalProps) {
                 <p className="text-sm font-semibold text-foreground">{formData.type === 'income' ? 'Recurring Income' : 'Recurring Bill'}</p>
                 <p className="text-xs text-muted-foreground">{formData.type === 'income' ? 'Automatically create next entry after receiving.' : 'Automatically create next bill after payment.'}</p>
               </div>
-              <input
-                type="checkbox"
+              <Switch
                 checked={formData.isRecurring}
-                onChange={(e) => handleSelectChange('isRecurring', String(e.target.checked) === 'true' ? 'true' : '')}
-                className="w-5 h-5 rounded border border-border bg-input transition-all cursor-pointer accent-primary"
-                onClick={() => {
-                   setFormData((prev: Partial<CreateBillData>) => ({ ...prev, isRecurring: !prev.isRecurring }))
-                }}
+                onCheckedChange={(checked) =>
+                  setFormData((prev: Partial<CreateBillData>) => ({ ...prev, isRecurring: checked }))
+                }
               />
             </div>
 
@@ -339,26 +337,26 @@ export function BillModal({ open, onClose, onSuccess, bill }: BillModalProps) {
           {/* Notes */}
           <div className="space-y-2">
             <label htmlFor="notes" className="text-sm font-semibold text-foreground">Notes (Optional)</label>
-            <textarea
+            <Textarea
               id="notes"
               name="notes"
               rows={3}
               placeholder="Add any additional details about this bill..."
               value={formData.notes || ''}
               onChange={handleChange}
-              className="w-full px-3 py-2 border border-border rounded-lg bg-secondary/30 text-foreground focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm resize-none"
+              className="bg-secondary/30 resize-none"
             />
           </div>
         </form>
 
         <SheetFooter className="shrink-0 flex items-center justify-end gap-3 border-t border-border bg-secondary/10 px-6 py-6">
-          <Button variant="outline" onClick={onClose} disabled={isCreating || isUpdating}>
+          <Button variant="outline" onClick={onClose} disabled={isCreating || isUpdating} className="w-full sm:w-auto sm:flex-1">
             Cancel
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={isCreating || isUpdating}
-            className="min-w-[120px] shadow-lg shadow-primary/20"
+            className="w-full sm:w-auto sm:flex-1 shadow-lg shadow-primary/20"
           >
             {isCreating || isUpdating ? (
               <div className="flex items-center gap-2">

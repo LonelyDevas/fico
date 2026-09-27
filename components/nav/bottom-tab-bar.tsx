@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Link, useHistory, useLocation } from 'react-router-dom'
-import { Home, TrendingUp, Wallet, CreditCard, Menu, PieChart, Tag, Settings as SettingsIcon, Moon, Sun, LogOut } from 'lucide-react'
+import { Home, TrendingUp, Wallet, CreditCard, Menu, PieChart, Tag, Settings as SettingsIcon, Moon, Sun, LogOut, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '@/store/theme-store'
 import { useAuthStore } from '@/store/auth-store'
@@ -20,6 +20,7 @@ const TABS = [
 const MORE_ITEMS = [
   { label: 'Budgets', href: '/budgets', icon: PieChart },
   { label: 'Categories', href: '/categories', icon: Tag },
+  { label: 'Profile', href: '/profile', icon: User },
   { label: 'Settings', href: '/settings', icon: SettingsIcon },
 ]
 
