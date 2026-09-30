@@ -6,7 +6,8 @@ import { Eye, EyeOff, Check, ChevronLeft } from 'lucide-react'
 import { Link, useHistory } from 'react-router-dom'
 import { useSettingsStore } from '@/store/settings-store'
 import { RegisterFormData, registerSchema } from '@/validation/auth'
-import { useRegisterUser } from '@/queries/auth/auth'
+import { useOAuthLogin, useRegisterUser } from '@/queries/auth/auth'
+import { GoogleButton } from '@/components/page/auth/google-button'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
@@ -51,6 +52,7 @@ export function SignupForm() {
   })
 
   const { mutateAsync: registerUser, isPending } = useRegisterUser()
+  const { mutate: oauthLogin, isPending: isGoogleRedirecting } = useOAuthLogin()
   const { setOnboardingCompleted } = useSettingsStore()
 
   const passwordValue = watch('password') || ''
@@ -103,6 +105,11 @@ export function SignupForm() {
   }
 
   const isSaving = isSubmitting || isPending
+
+  const handleGoogleSignUp = () => {
+    // New accounts reach onboarding on their own; an existing one must not be reset.
+    oauthLogin({ provider: 'google' })
+  }
 
   const strengthColor =
     passwordStrength <= 2 ? 'bg-red-500' :
@@ -386,6 +393,17 @@ export function SignupForm() {
           )}
         </div>
       </form>
+
+      {currentStep === 1 && (
+        <>
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-gray-200 dark:bg-zinc-700" />
+            <span className="text-xs text-gray-400 dark:text-zinc-500">or</span>
+            <div className="flex-1 h-px bg-gray-200 dark:bg-zinc-700" />
+          </div>
+          <GoogleButton onClick={handleGoogleSignUp} label="Sign up with Google" disabled={isSaving || isGoogleRedirecting} />
+        </>
+      )}
 
       <p className="text-center text-[13px] text-gray-500 dark:text-zinc-400 mt-6">
         Already have an account?{' '}

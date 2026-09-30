@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/peacock-mascot'
 import { useMemo } from 'react'
 import { ChartPie, Layers3 } from 'lucide-react'
 import {
@@ -113,10 +114,12 @@ export function CategoryDistributionCard({ period, walletId }: StatisticsProps) 
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border bg-secondary/20 px-6 py-10 text-center">
-          <div>
-            <p className="text-sm font-semibold text-foreground">No category data yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">Add more transactions to build a richer category split.</p>
-          </div>
+          <EmptyState
+            compact
+            pose="advisor"
+            title="No category data yet"
+            description="Add more transactions to build a richer category split."
+          />
         </div>
       )}
     </div>

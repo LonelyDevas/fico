@@ -29,9 +29,12 @@ export const metadata: Metadata = {
   keywords: ['finance', 'budgeting', 'money-tracking', 'financial-management', 'personal-finance', 'wallet'],
   authors: [{ name: 'Fico Team' }],
   icons: {
-    icon: '/FicoLogoTrans1.png',
-    shortcut: '/FicoLogoTrans1.png',
-    apple: '/FicoLogoTrans1.png',
+    icon: [
+      { url: '/fico-peacock.svg', type: 'image/svg+xml' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    shortcut: '/icon-512.png',
+    apple: '/apple-touch-icon.png',
   },
   appleWebApp: {
     capable: true,

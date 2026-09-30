@@ -8,6 +8,8 @@ import { App } from '@capacitor/app';
 import { supabase } from '@/utils/supabase-client';
 
 
+const isSupabaseBackend = process.env.NEXT_PUBLIC_BACKEND === 'supabase';
+
 interface AuthState {
   user: AccessToken | null;
   isAuthenticated: boolean;
@@ -48,6 +50,16 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      // With Supabase the real session decides who is signed in. Restoring a saved
+      // "isAuthenticated: true / isLoading: false" on a hard refresh made the app show
+      // pages before the session was checked, and left them empty if it had expired.
+      partialize: (state) => (isSupabaseBackend ? { user: state.user } : state),
+      merge: (persisted, current) => ({
+        ...current,
+        ...(isSupabaseBackend
+          ? { user: (persisted as Partial<AuthState> | undefined)?.user ?? null }
+          : (persisted as Partial<AuthState> | undefined)),
+      }),
     }
   )
 );
@@ -74,6 +86,12 @@ export function useSupabaseAuthSync() {
 
     let cancelled = false;
 
+    // Never leave the app waiting forever if the session check stalls (slow network,
+    // a token refresh that hangs). Once loading ends, unauthenticated pages go to sign-in.
+    const loadingTimeout = setTimeout(() => {
+      if (useAuthStore.getState().isLoading) setLoading(false);
+    }, 8000);
+
     const syncFromSession = async (session: import('@supabase/supabase-js').Session | null) => {
       if (!session) {
         if (!cancelled) clearAuth();
@@ -99,12 +117,18 @@ export function useSupabaseAuthSync() {
       });
     };
 
-    supabase.auth.getSession().then(({ data }) => syncFromSession(data.session));
+    supabase.auth
+      .getSession()
+      .then(({ data }) => syncFromSession(data.session))
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        // No forced reload here: the page guards in AppShell send signed-out users to
+        // /signin on their own. A reload on top of the logout navigation showed sign-in twice.
         clearAuth();
-        if (typeof window !== 'undefined') window.location.href = '/signin';
         return;
       }
       syncFromSession(session);
@@ -130,6 +154,7 @@ export function useSupabaseAuthSync() {
 
     return () => {
       cancelled = true;
+      clearTimeout(loadingTimeout);
       listener.subscription.unsubscribe();
       removeAppStateListener?.();
     };

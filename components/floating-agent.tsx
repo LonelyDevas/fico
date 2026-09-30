@@ -1,7 +1,8 @@
 'use client'
 
+import { EmptyState, PeacockAvatar, PeacockMascot } from '@/components/peacock-mascot'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import Image from 'next/image'
+import { createPortal } from 'react-dom'
 import { useQuickStats } from '@/queries/user/transaction/transaction'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { useListCategories } from '@/queries/user/category/categories'
@@ -301,21 +302,22 @@ export function FloatingAgent() {
   // Render: hidden state
   // ---------------------------------------------------------------------------
   if (isHidden) {
-    return (
+    return createPortal(
       <button
         onClick={() => setIsHidden(false)}
         className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] right-4 z-40 lg:bottom-6 lg:right-6 flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg transition-all duration-300 text-sm font-medium"
       >
         <MessageCircle size={16} />
-        Show Agent
-      </button>
+        Show Fico
+      </button>,
+      document.body
     )
   }
 
   // ---------------------------------------------------------------------------
   // Render: main
   // ---------------------------------------------------------------------------
-  return (
+  return createPortal(
     <>
       <div className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] right-4 z-50 lg:bottom-6 lg:right-6">
 
@@ -333,8 +335,8 @@ export function FloatingAgent() {
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 p-3 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <Image src="/agentz.png" alt="Agent Z" width={26} height={26} className="rounded-full object-cover" />
-                <span className="text-white font-semibold text-sm">Agent Z</span>
+                <PeacockAvatar className="w-7 h-7" />
+                <span className="text-white font-semibold text-sm">Fico</span>
               </div>
               <div className="flex items-center gap-1.5">
                 {/* Mode tabs */}
@@ -369,18 +371,16 @@ export function FloatingAgent() {
             {mode === 'insight' && (
               <div className="p-5 space-y-4 overflow-y-auto">
                 {insight ? (
-                  <>
-                    <div className="flex justify-center">
-                      <Image src="/agentz.png" alt="AI Financial Advisor" width={160} height={176} className="object-contain" />
-                    </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
+                  <div className="flex items-end gap-2">
+                    <PeacockMascot pose="advisor" className="w-24 h-24 shrink-0" label="Fico, your financial advisor" />
+                    <div className="relative min-w-0 flex-1 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border border-blue-200 dark:border-blue-700 rounded-2xl rounded-bl-md p-3">
+                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">Fico</p>
                       <p className="text-sm text-gray-800 dark:text-gray-100 leading-relaxed">{insight}</p>
                     </div>
-                  </>
+                  </div>
                 ) : (
-                  <div className="text-center py-6 text-muted-foreground text-sm space-y-3">
-                    <Image src="/agentz.png" alt="Agent Z" width={100} height={110} className="object-contain mx-auto opacity-60" />
-                    <p>No insights yet. Keep tracking your transactions!</p>
+                  <div className="py-4">
+                    <EmptyState compact pose="advisor" title="No insights yet" description="Keep tracking your transactions!" />
                   </div>
                 )}
                 <div className="flex gap-2 pt-1">
@@ -411,9 +411,7 @@ export function FloatingAgent() {
                 >
                   {messages.map(msg => (
                     <div key={msg.id} className={`flex items-end gap-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      {msg.role === 'agent' && (
-                        <Image src="/agentz.png" alt="" width={18} height={18} className="rounded-full object-cover shrink-0 mb-0.5" />
-                      )}
+                      {msg.role === 'agent' && <PeacockAvatar className="w-5 h-5 mb-0.5" />}
                       <div
                         className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                           msg.role === 'user'
@@ -433,7 +431,7 @@ export function FloatingAgent() {
                   {/* Processing indicator */}
                   {(isProcessing || isOcring) && (
                     <div className="flex items-end gap-1 justify-start">
-                      <Image src="/agentz.png" alt="" width={18} height={18} className="rounded-full object-cover shrink-0 mb-0.5" />
+                      <PeacockAvatar className="w-5 h-5 mb-0.5" />
                       <div className="bg-secondary rounded-2xl rounded-bl-sm px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
                         <Loader2 size={12} className="animate-spin" />
                         {isOcring ? `Scanning… ${ocrProgress}%` : 'Processing…'}
@@ -554,7 +552,7 @@ export function FloatingAgent() {
         >
           {!isOpen ? (
             <>
-              <Image src="/agentz.png" alt="AI Advisor" width={56} height={56} className="rounded-full object-cover" />
+              <PeacockAvatar className="w-14 h-14" label="Fico, your financial advisor" />
               <div className="absolute top-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full" />
             </>
           ) : (
@@ -578,6 +576,7 @@ export function FloatingAgent() {
           }}
         />
       )}
-    </>
+    </>,
+    document.body
   )
 }

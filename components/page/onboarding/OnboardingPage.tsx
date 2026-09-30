@@ -11,6 +11,7 @@ import {
 import { useSettingsStore } from '@/store/settings-store'
 import { useThemeStore } from '@/store/theme-store'
 import { useAuthStore } from '@/store/auth-store'
+import { markOnboardingDone } from '@/utils/onboarding'
 import type { CurrencyCode, DateFormat, LandingPage } from '@/types/settings'
 
 // ─── Static data ──────────────────────────────────────────────────────────────
@@ -59,13 +60,12 @@ export function OnboardingPage() {
     compactLayout, setCompactLayout,
     defaultLandingPage, setDefaultLandingPage,
     dateFormat, setDateFormat,
-    setOnboardingCompleted,
   } = useSettingsStore()
 
   const username = user?.username ?? 'there'
 
   const finish = () => {
-    setOnboardingCompleted(true)
+    void markOnboardingDone()
     history.push(defaultLandingPage)
   }
 

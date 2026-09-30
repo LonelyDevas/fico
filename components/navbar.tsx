@@ -8,29 +8,18 @@ import {
   User,
   LogOut,
   Settings as SettingsIcon,
-  Wallet,
-  CreditCard,
-  TrendingUp,
-  PieChart,
-  Tag,
-  Home,
+  ArrowLeft,
+  Plus,
 } from 'lucide-react'
 import { useThemeStore } from '@/store/theme-store'
 import { useAuthStore, useUser } from '@/store/auth-store'
 import { useLogout } from '@/queries/auth/auth'
 import { BottomTabBar } from '@/components/nav/bottom-tab-bar'
+import { AccountSheet } from '@/components/nav/account-sheet'
+import { NAV_ITEMS, getPageTitle, isNavItemActive, isManageSubRoute } from '@/components/nav/nav-items'
+import { QuickAddSheet } from '@/components/page/transaction/quick-add-sheet'
 
 const getInitial = (value?: string) => (value ? value.trim().charAt(0).toUpperCase() : 'U')
-
-const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: <Home className="w-4 h-4" /> },
-  { label: 'Wallets', href: '/wallets', icon: <Wallet className="w-4 h-4" /> },
-  { label: 'Transactions', href: '/transactions', icon: <TrendingUp className="w-4 h-4" /> },
-  { label: 'Bills', href: '/bills', icon: <CreditCard className="w-4 h-4" /> },
-  { label: 'Budgets', href: '/budgets', icon: <PieChart className="w-4 h-4" /> },
-  { label: 'Categories', href: '/categories', icon: <Tag className="w-4 h-4" /> },
-  { label: 'Settings', href: '/settings', icon: <SettingsIcon className="w-4 h-4" /> },
-]
 
 export default function DNavbar() {
   const history = useHistory()
@@ -40,9 +29,11 @@ export default function DNavbar() {
   const clearAuth = useAuthStore((state) => state.clearAuth)
   const { mutate: logout } = useLogout()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
 
-  const isActive = (href: string) => location.pathname === href || location.pathname.startsWith(href + '/')
-  const pageTitle = navItems.find((item) => isActive(item.href))?.label ?? 'Fico'
+  const pageTitle = getPageTitle(location.pathname)
+  const showBack = isManageSubRoute(location.pathname)
 
   const go = (href: string) => {
     history.push(href)
@@ -64,21 +55,41 @@ export default function DNavbar() {
       <header className="ios-blur safe-top sticky top-0 z-40 border-b border-border/70 lg:hidden">
         <div className="flex h-14 items-center justify-between gap-3 px-4">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl overflow-hidden bg-card flex items-center justify-center shrink-0">
-              <img src="/FicoLogoTrans1.png" alt="Fico logo" className="w-full h-full object-contain" />
-            </div>
+            {showBack ? (
+              <button
+                onClick={() => history.push('/manage')}
+                className="p-2 -ml-2 rounded-full hover:bg-secondary text-foreground shrink-0"
+                aria-label="Back to Manage"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            ) : (
+              <div className="w-8 h-8 rounded-xl overflow-hidden bg-card flex items-center justify-center shrink-0">
+                <img src="/FicoLogoTrans1.png" alt="Fico logo" className="w-full h-full object-contain" />
+              </div>
+            )}
             <span className="text-base font-bold text-foreground truncate">{pageTitle}</span>
           </div>
-          <button
-            onClick={toggleDarkMode}
-            className="p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground shrink-0"
-            aria-label="Toggle theme"
-          >
-            {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground"
+              aria-label="Toggle theme"
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={() => setAccountOpen(true)}
+              className="flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground font-semibold text-sm"
+              aria-label="Account"
+            >
+              {getInitial(user?.username || user?.email)}
+            </button>
+          </div>
         </div>
       </header>
-      <BottomTabBar />
+      <BottomTabBar onAdd={() => setAddOpen(true)} />
+      <AccountSheet open={accountOpen} onOpenChange={setAccountOpen} />
 
       {/* Desktop: full horizontal nav */}
       <header className="ios-blur sticky top-0 z-40 border-b border-border/70 hidden lg:block">
@@ -96,8 +107,9 @@ export default function DNavbar() {
 
             {/* Nav links */}
             <nav className="flex items-center gap-1 absolute left-1/2 -translate-x-1/2">
-              {navItems.map((item) => {
-                const active = isActive(item.href)
+              {NAV_ITEMS.map((item) => {
+                const active = isNavItemActive(item, location.pathname)
+                const Icon = item.icon
                 return (
                   <Link
                     key={item.href}
@@ -110,7 +122,7 @@ export default function DNavbar() {
                         : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                     }`}
                   >
-                    {item.icon}
+                    <Icon className="w-4 h-4" />
                     <span>{item.label}</span>
                   </Link>
                 )
@@ -119,6 +131,14 @@ export default function DNavbar() {
 
             {/* Right actions */}
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAddOpen(true)}
+                className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-semibold uppercase tracking-wide text-primary-foreground shadow-sm transition-shadow hover:shadow-md"
+                title="Add transaction"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
               <button
                 onClick={toggleDarkMode}
                 className="p-2 rounded-full hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
@@ -163,6 +183,8 @@ export default function DNavbar() {
           </div>
         </div>
       </header>
+
+      <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} />
     </>
   )
 }

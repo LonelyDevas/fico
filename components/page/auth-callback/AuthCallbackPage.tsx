@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode'
 import { useAuthStore, useIsAuthenticated, useAuthLoading } from '@/store/auth-store'
 import { useSettingsStore } from '@/store/settings-store'
 import type { AccessToken } from '@/types/auth'
+import { isOnboardingDone } from '@/utils/onboarding'
 
 const isSupabase = () => process.env.NEXT_PUBLIC_BACKEND === 'supabase'
 
@@ -23,7 +24,18 @@ export function AuthCallbackPage() {
   useEffect(() => {
     if (!isSupabase()) return
     if (isAuthLoading) return
-    history.replace(isAuthenticated ? (onboardingCompleted ? defaultLandingPage : '/onboarding') : '/signin')
+    if (!isAuthenticated) {
+      history.replace('/signin')
+      return
+    }
+    // Onboarding is remembered on the account, so ask it instead of trusting this browser alone.
+    let cancelled = false
+    void isOnboardingDone().then((done) => {
+      if (!cancelled) history.replace(done ? defaultLandingPage : '/onboarding')
+    })
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSupabase(), isAuthLoading, isAuthenticated])
 

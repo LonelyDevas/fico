@@ -11,9 +11,11 @@ export async function generateStaticParams() {
     { all: ['wallets'] },
     { all: ['transactions'] },
     { all: ['budgets'] },
+    { all: ['manage'] },
     { all: ['bills'] },
     { all: ['categories'] },
     { all: ['settings'] },
+    { all: ['profile'] },
     { all: ['onboarding'] },
     { all: ['auth', 'callback'] },
   ]

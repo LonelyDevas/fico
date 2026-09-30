@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/peacock-mascot'
 import { useMemo } from 'react'
 import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -147,8 +148,8 @@ export function RecentTransactions() {
             </div>
           ))
         ) : (
-          <div className="p-6 text-center text-muted-foreground">
-            <p>No transactions found</p>
+          <div className="p-6">
+            <EmptyState compact title="No transactions found" />
           </div>
         )}
       </div>

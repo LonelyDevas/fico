@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Plus, Download, Filter, MoreHorizontal } from 'lucide-react'
+import { Download, Filter, MoreHorizontal } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -89,7 +89,6 @@ export function TransactionsPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<TransactionItem | null>(null)
   const [sheetEditingTransaction, setSheetEditingTransaction] = useState<TransactionItem | null>(null)
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
   const [transactionToDelete, setTransactionToDelete] = useState<TransactionItem | null>(null)
   const [page, setPage] = useState(0)
@@ -239,10 +238,6 @@ export function TransactionsPage() {
                       <Download className="w-4 h-4" />
                       <span className="hidden sm:inline">Import</span>
                     </Button>
-                    <Button className="gap-2 flex-shrink-0 rounded-full" onClick={() => setShowCreateModal(true)}>
-                      <Plus className="w-4 h-4" />
-                      <span className="hidden sm:inline">New Transaction</span>
-                    </Button>
                   </div>
 
                   {/* Mobile: condensed dropdown */}
@@ -259,9 +254,6 @@ export function TransactionsPage() {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setShowImportModal(true)}>
                           Import
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setShowCreateModal(true)}>
-                          New Transaction
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -291,13 +283,6 @@ export function TransactionsPage() {
                     >
                       <Filter className="w-4 h-4" />
                       Filters
-                    </Button>
-                    <Button
-                      className="w-full gap-2 justify-center rounded-full"
-                      onClick={() => setShowCreateModal(true)}
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Transaction
                     </Button>
                   </div>
 
@@ -348,13 +333,6 @@ export function TransactionsPage() {
       <TransactionImportModal
         open={showImportModal}
         onClose={() => setShowImportModal(false)}
-        onSuccess={() => refetch()}
-      />
-
-      {/* Create Transaction Modal */}
-      <CreateTransactionModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
         onSuccess={() => refetch()}
       />
 

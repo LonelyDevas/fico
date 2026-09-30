@@ -1,4 +1,5 @@
 'use client'
+import { EmptyState } from '@/components/peacock-mascot'
 import React, { useState, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/button'
@@ -127,12 +128,13 @@ export default function BillList() {
           ))}
         </div>
       ) : (
-        <div className="p-6 bg-gradient-to-br from-card to-secondary border border-border rounded-xl text-center">
-          <p className="text-muted-foreground mb-4">No bills found</p>
-          <Button size="sm" className="gap-2" onClick={() => setShowCreateModal(true)}>
-            <Plus className="w-4 h-4" />
-            Create Your First Bill
-          </Button>
+        <div className="p-6 bg-gradient-to-br from-card to-secondary border border-border rounded-xl">
+          <EmptyState pose="advisor" title="No bills found" description="Add your bills and I will help you stay on top of them.">
+            <Button size="sm" className="gap-2" onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4" />
+              Create Your First Bill
+            </Button>
+          </EmptyState>
         </div>
       )}
 

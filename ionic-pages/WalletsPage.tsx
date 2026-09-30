@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/peacock-mascot'
 import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/button'
@@ -245,12 +246,13 @@ export function WalletsPage() {
                 ))}
               </div>
             ) : (
-              <div className="bg-card border border-border rounded-2xl p-12 text-center">
-                <p className="text-muted-foreground mb-4">No wallets found</p>
-                <Button className="gap-2 rounded-full" onClick={() => setShowCreateModal(true)}>
-                  <Plus className="w-4 h-4" />
-                  Create Your First Wallet
-                </Button>
+              <div className="bg-card border border-border rounded-2xl p-12">
+                <EmptyState title="No wallets found" description="Add a wallet to start tracking your money.">
+                  <Button className="gap-2 rounded-full" onClick={() => setShowCreateModal(true)}>
+                    <Plus className="w-4 h-4" />
+                    Create Your First Wallet
+                  </Button>
+                </EmptyState>
               </div>
             )}
           </div>

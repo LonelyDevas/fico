@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/peacock-mascot'
 import { useEffect, useRef } from 'react'
 import { ArrowUpRight, ArrowDownLeft, Shuffle, Clock, Check, X, MoreVertical } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -200,9 +201,11 @@ export function TransactionList({
 
   if (!transactions.length) {
     return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground mb-2">No transactions found</p>
-        <p className="text-sm text-muted-foreground">Try adjusting your filters or add a new transaction</p>
+      <div className="py-8">
+        <EmptyState
+          title="No transactions found"
+          description="Try adjusting your filters or add a new transaction"
+        />
       </div>
     )
   }

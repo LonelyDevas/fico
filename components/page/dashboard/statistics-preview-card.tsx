@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@/components/peacock-mascot'
 import { useMemo } from 'react'
 import { ChartPie, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -59,8 +60,8 @@ export function StatisticsPreviewCard({ period, walletId }: PreviewProps) {
                 </div>
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-border px-3 py-4 text-sm text-muted-foreground sm:col-span-3">
-                No category data yet.
+              <div className="rounded-xl border border-dashed border-border px-3 py-4 sm:col-span-3">
+                <EmptyState compact pose="advisor" title="No category data yet" />
               </div>
             )}
           </div>

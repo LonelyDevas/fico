@@ -9,14 +9,20 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Fico is a comprehensive financial management application that helps you track transactions, manage budgets, and take control of your finances.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#F1F5F9',
+    background_color: '#FFFFFF',
     theme_color: '#0066CC',
     icons: [
       {
-        src: '/FicoLogoTrans1.png',
-        sizes: '1024x1024',
+        src: '/icon-512.png',
+        sizes: '512x512',
         type: 'image/png',
         purpose: 'any',
+      },
+      {
+        src: '/icon-maskable-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   }

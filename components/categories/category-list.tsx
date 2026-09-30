@@ -1,4 +1,5 @@
 'use client'
+import { EmptyState } from '@/components/peacock-mascot'
 import React, { useState, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/button'
@@ -180,12 +181,13 @@ export default function CategoryList() {
           ))}
         </div>
       ) : (
-        <div className="px-6 py-12 bg-card/30 border border-dashed border-border rounded-2xl text-center">
-          <p className="text-muted-foreground mb-6">No categories found in your account</p>
-          <Button size="lg" className="rounded-full px-8" onClick={() => setOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create First Category
-          </Button>
+        <div className="px-6 py-12 bg-card/30 border border-dashed border-border rounded-2xl">
+          <EmptyState pose="advisor" title="No categories found in your account" description="Categories help you see where your money goes.">
+            <Button size="lg" className="rounded-full px-8" onClick={() => setOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create First Category
+            </Button>
+          </EmptyState>
         </div>
       )}
 
