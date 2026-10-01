@@ -2,20 +2,12 @@
 
 import { useState, useMemo, useEffect } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Download, Filter, MoreHorizontal } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu'
+import { Download, SlidersHorizontal, Upload } from 'lucide-react'
 import { IonContent, IonPage } from '@ionic/react'
 import { TransactionStats } from '@/components/page/transaction/transaction-stats'
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
-import { FilterState, TransactionFilters } from '@/components/page/transaction/transaction-filter'
+import { DEFAULT_FILTERS, FilterState, TransactionFilters } from '@/components/page/transaction/transaction-filter'
 import { TransactionItem, TransactionList } from '@/components/page/transaction/transaction-list'
-import { useDeleteTransaction, useListTransactions, useTransactionsSummary, useUpdateTransaction } from '@/queries/user/transaction/transaction'
+import { useDeleteTransaction, useListTransactions, useQuickStats, useUpdateTransaction } from '@/queries/user/transaction/transaction'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { ListTransactionsParams } from '@/types/transaction'
 import { CreateTransactionModal } from '@/components/page/transaction/create-transaction-modal'
@@ -39,33 +31,17 @@ const convertFilterToParams = (filters: FilterState): ListTransactionsParams => 
     params.search = filters.search
   }
 
-  // Convert dateRange to startDate/endDate
+  // Calendar periods (this month = from the 1st), matching the summary card. Full timestamps
+  // so "today" and the last day of the range are not cut off at midnight.
   if (filters.dateRange && filters.dateRange !== 'all') {
-    const today = new Date()
-    let startDate = new Date()
-    let endDate = new Date()
-    // startDate is start of the month and endDate is end of the month by default
-    startDate.setDate(1)
-    endDate.setMonth(endDate.getMonth() + 1)
-    endDate.setDate(0)
+    const now = new Date()
+    let start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    if (filters.dateRange === 'week') start.setDate(start.getDate() - ((start.getDay() + 6) % 7)) // Monday
+    if (filters.dateRange === 'month') start = new Date(now.getFullYear(), now.getMonth(), 1)
+    if (filters.dateRange === 'year') start = new Date(now.getFullYear(), 0, 1)
 
-    switch (filters.dateRange) {
-      case 'today':
-        startDate = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-        break
-      case 'week':
-        startDate.setDate(today.getDate() - 7)
-        break
-      case 'month':
-        startDate.setMonth(today.getMonth() - 1)
-        break
-      case 'year':
-        startDate.setFullYear(today.getFullYear() - 1)
-        break
-    }
-
-    params.startDate = startDate.toISOString().split('T')[0]
-    params.endDate = endDate.toISOString().split('T')[0]
+    params.startDate = start.toISOString()
+    params.endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).toISOString()
   }
 
   if (filters.walletId && filters.walletId !== '') {
@@ -78,14 +54,17 @@ const convertFilterToParams = (filters: FilterState): ListTransactionsParams => 
 
   return params
 }
+const PERIOD_PHRASE: Record<NonNullable<FilterState['dateRange']>, string> = {
+  today: 'today',
+  week: 'this week',
+  month: 'this month',
+  year: 'this year',
+  all: 'overall',
+}
+
 export function TransactionsPage() {
 
-  const [filters, setFilters] = useState<FilterState>({
-    type: 'all',
-    status: 'all',
-    dateRange: 'all',
-    search: '',
-  })
+  const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
   const [showFilters, setShowFilters] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<TransactionItem | null>(null)
   const [sheetEditingTransaction, setSheetEditingTransaction] = useState<TransactionItem | null>(null)
@@ -104,6 +83,18 @@ export function TransactionsPage() {
       : walletsData.data.items || []
     : []
 
+  const walletNames = useMemo(() => {
+    const names: Record<string, string> = {}
+    for (const wallet of wallets as any[]) names[String(wallet._id ?? wallet.id)] = wallet.name
+    return names
+  }, [wallets])
+
+  const walletTypes = useMemo(() => {
+    const types: Record<string, string> = {}
+    for (const wallet of wallets as any[]) types[String(wallet._id ?? wallet.id)] = wallet.type
+    return types
+  }, [wallets])
+
   // Convert filters to API params
   const apiParams = {
     ...convertFilterToParams(filters),
@@ -114,7 +105,8 @@ export function TransactionsPage() {
   // Fetch transactions from API
   const { data: apiResponse, isLoading, error, refetch } = useListTransactions(apiParams);
   // Fetch summary stats
-  const { data: summaryData, isLoading: summaryLoading } = useTransactionsSummary(apiParams);
+  // Totals for the selected period (and wallet), the same range the list above is showing.
+  const { data: summaryData } = useQuickStats({ period: filters.dateRange ?? 'month', walletId: filters.walletId || undefined });
   const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction()
   const { mutate: updateTransaction, isPending: isUpdatingTransaction } = useUpdateTransaction()
   
@@ -126,6 +118,20 @@ export function TransactionsPage() {
       ? apiResponse.data
       : apiResponse.data.items || [];
   }, [apiResponse]);
+
+  // Rows from Supabase have no `title`: use the category as the headline and the note as the detail.
+  const items: TransactionItem[] = useMemo(
+    () =>
+      allTransactions.map((t: any) => ({
+        ...t,
+        id: String(t._id ?? t.id),
+        title: t.title || t.category?.name || (t.type === 'transfer' ? 'Transfer' : t.description) || 'Transaction',
+        description: t.description ?? '',
+        category: t.category?.name,
+        walletId: t.walletId ? String(t.walletId) : t.wallet?._id ? String(t.wallet._id) : undefined,
+      })),
+    [allTransactions]
+  )
 
   const totalItems = apiResponse?.data?.totalItems || currentPageTransactions.length;
   const totalPagesCount = apiResponse?.data?.totalPages || 1;
@@ -207,123 +213,79 @@ export function TransactionsPage() {
 
   // Use summary stats from API
   const stats = {
-    totalIncome: summaryData?.data?.totalIncome ?? 0,
-    totalExpense: summaryData?.data?.totalExpenses ?? 0,
-    totalTransfers: summaryData?.data?.totalTransfers ?? 0,
-    transactionCount: summaryData?.data?.totalTransactions ?? 0,
+    totalIncome: Number(summaryData?.data?.income ?? 0),
+    totalExpense: Number(summaryData?.data?.expenses ?? 0),
+    totalTransfers: Number(summaryData?.data?.transfers ?? 0),
+    transactionCount: Number(summaryData?.data?.transactions ?? 0),
   };
 
   return (
     <IonPage>
       <IonContent className="bg-background text-foreground">
 
-        {/* Main Content */}
-        <main>
-          {/* Page Header */}
-          <div className="bg-gradient-to-r from-primary/5 to-accent/5 border-b border-border">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-              <div className="flex items-center justify-between gap-2 sm:gap-4">
-                <div>
-                  <h1 className="text-2xl sm:text-4xl font-bold text-foreground">Transactions</h1>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-1">Track and analyze your financial movements</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {/* Desktop / larger screens: show separate buttons */}
-                  <div className="hidden sm:flex items-center gap-3">
-                    <Button variant="outline" className="gap-2 flex-shrink-0 rounded-full" size="sm">
-                      <Download className="w-4 h-4" />
-                      <span className="hidden sm:inline">Export</span>
-                    </Button>
-                    <Button variant="outline" className="gap-2 flex-shrink-0 rounded-full" size="sm" onClick={() => setShowImportModal(true)}>
-                      <Download className="w-4 h-4" />
-                      <span className="hidden sm:inline">Import</span>
-                    </Button>
-                  </div>
-
-                  {/* Mobile: condensed dropdown */}
-                  <div className="sm:hidden">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="p-2">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => { /* TODO: implement export */ console.warn('Export not implemented') }}>
-                          Export
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setShowImportModal(true)}>
-                          Import
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </div>
+        <main className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+          <div className="flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Every peso, in order</p>
+              <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight text-foreground sm:text-3xl">Activity</h1>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => console.warn('Export not implemented')}
+                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-semibold text-foreground shadow-ios hover:border-primary/50"
+              >
+                <Download className="h-4 w-4 text-primary" />
+                <span className="hidden sm:inline">Export</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-semibold text-foreground shadow-ios hover:border-primary/50"
+              >
+                <Upload className="h-4 w-4 text-primary" />
+                <span className="hidden sm:inline">Import</span>
+              </button>
             </div>
           </div>
 
-          {/* Stats Section */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-            <TransactionStats stats={stats} isLoading={isLoading} />
+          <div className="mt-5">
+            <TransactionStats stats={stats} isLoading={isLoading && page === 0} periodPhrase={PERIOD_PHRASE[filters.dateRange ?? 'month']} />
           </div>
 
-          {/* Main Content Grid */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 sm:pb-12">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-6">
-              {/* Filters Sidebar */}
-              <div className="lg:col-span-1">
-                <div className="space-y-4">
-                  {/* Mobile: opens filters in a sheet */}
-                  <div className="lg:hidden space-y-3">
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2 justify-center rounded-full"
-                      onClick={() => setShowFilters(true)}
-                    >
-                      <Filter className="w-4 h-4" />
-                      Filters
-                    </Button>
-                  </div>
-
-                  {/* Desktop: inline filters card */}
-                  <div className="hidden lg:block bg-card border border-border rounded-2xl p-6 shadow-ios">
-                    <h2 className="text-lg font-semibold text-foreground mb-6">Filters</h2>
-                    <TransactionFilters onFilterChange={setFilters} wallets={wallets} />
-                  </div>
-                </div>
+          <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+            <div className="lg:order-2 lg:sticky lg:top-4">
+              <button
+                type="button"
+                aria-expanded={showFilters}
+                onClick={() => setShowFilters((open) => !open)}
+                className="flex w-full items-center justify-center gap-2 rounded-full border border-border bg-card py-2.5 text-sm font-semibold text-foreground shadow-ios lg:hidden"
+              >
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                {showFilters ? 'Hide filters' : 'Filters'}
+              </button>
+              <div className={`mt-3 lg:mt-0 ${showFilters ? 'block' : 'hidden'} lg:block`}>
+                <TransactionFilters value={filters} onChange={setFilters} wallets={wallets} />
               </div>
+            </div>
 
-              {/* Mobile: filters sheet */}
-              <Sheet open={showFilters} onOpenChange={setShowFilters}>
-                <SheetContent className="sm:max-w-md">
-                  <SheetHeader>
-                    <SheetTitle>Filters</SheetTitle>
-                    <SheetDescription>Narrow down transactions by type, status, date, wallet, or tag.</SheetDescription>
-                  </SheetHeader>
-                  <div className="flex-1 overflow-y-auto px-6 pb-6 min-h-0">
-                    <TransactionFilters onFilterChange={setFilters} wallets={wallets} />
-                  </div>
-                </SheetContent>
-              </Sheet>
-
-              {/* Transaction List */}
-              <div className="lg:col-span-3">
-                <TransactionList
-                  transactions={allTransactions}
-                  isLoading={isLoading && page === 0}
-                  hasMore={page + 1 < totalPagesCount}
-                  isLoadingMore={isLoadingMore}
-                  onTransactionClick={handleStartInlineEdit}
-                  onTransactionEdit={handleOpenSheetEdit}
-                  onTransactionDelete={handleDeleteTransaction}
-                  onTransactionSave={handleSaveInlineEdit}
-                  onTransactionCancelEdit={handleCancelInlineEdit}
-                  editingTransactionId={editingTransaction?.id ?? null}
-                  isSavingInlineEdit={isUpdatingTransaction}
-                  onLoadMore={handleLoadMore}
-                />
-              </div>
+            <div className="min-w-0 lg:order-1">
+              <TransactionList
+                transactions={items}
+                isLoading={isLoading && page === 0}
+                hasMore={page + 1 < totalPagesCount}
+                isLoadingMore={isLoadingMore}
+                walletNames={walletNames}
+                walletTypes={walletTypes}
+                onTransactionClick={handleStartInlineEdit}
+                onTransactionEdit={handleOpenSheetEdit}
+                onTransactionDelete={handleDeleteTransaction}
+                onTransactionSave={handleSaveInlineEdit}
+                onTransactionCancelEdit={handleCancelInlineEdit}
+                editingTransactionId={editingTransaction?.id ?? null}
+                isSavingInlineEdit={isUpdatingTransaction}
+                onLoadMore={handleLoadMore}
+              />
             </div>
           </div>
         </main>

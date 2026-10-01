@@ -13,6 +13,8 @@ export async function generateStaticParams() {
     { all: ['budgets'] },
     { all: ['manage'] },
     { all: ['bills'] },
+    { all: ['debts'] },
+    { all: ['investments'] },
     { all: ['categories'] },
     { all: ['settings'] },
     { all: ['profile'] },

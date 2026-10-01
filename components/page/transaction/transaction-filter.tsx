@@ -1,23 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, X, ChevronDown } from 'lucide-react'
-import { Check } from 'lucide-react'
+import { Check, ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useTransactionTags } from '@/queries/user/transaction/transaction'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from '@/components/ui/dropdown-menu'
-
-interface TransactionFiltersProps {
-  onFilterChange: (filters: FilterState) => void
-  wallets?: { id: string; name?: string }[]
-}
 
 export interface FilterState {
   type?: 'income' | 'expense' | 'transfer' | 'all'
@@ -28,233 +13,215 @@ export interface FilterState {
   tags?: string[]
 }
 
-export function TransactionFilters({ onFilterChange, wallets }: TransactionFiltersProps) {
-  const [filters, setFilters] = useState<FilterState>({
-    type: 'all',
-    status: 'all',
-    dateRange: 'month',
-    walletId: '',
-    search: '',
-  })
+export const DEFAULT_FILTERS: FilterState = {
+  type: 'all',
+  status: 'all',
+  dateRange: 'month',
+  walletId: '',
+  search: '',
+  tags: [],
+}
 
-  const handleFilterChange = (newFilters: Partial<FilterState>) => {
-    const updated = { ...filters, ...newFilters }
-    setFilters(updated)
-    onFilterChange(updated)
-  }
+interface TransactionFiltersProps {
+  value: FilterState
+  onChange: (filters: FilterState) => void
+  wallets?: { id: string; name?: string }[]
+}
 
-  const handleReset = () => {
-    setFilters({
-      type: 'all',
-      status: 'all',
-      dateRange: 'month',
-      walletId: '',
-      search: '',
-      tags: [],
-    })
-    onFilterChange({
-      type: 'all',
-      status: 'all',
-      dateRange: 'month',
-      walletId: '',
-      search: '',
-      tags: [],
-    })
-  }
+const TYPES: { value: NonNullable<FilterState['type']>; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'income', label: 'Money in' },
+  { value: 'expense', label: 'Money out' },
+  { value: 'transfer', label: 'Transfers' },
+]
 
-  const activeFilters = Object.entries(filters).filter(
-    ([key, value]) => value && value !== 'all' && value !== ''
-  ).length
+const RANGES: { value: NonNullable<FilterState['dateRange']>; label: string }[] = [
+  { value: 'today', label: 'Today' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'year', label: 'Year' },
+  { value: 'all', label: 'All time' },
+]
 
-  // Fetch available tags
+const STATUSES: { value: NonNullable<FilterState['status']>; label: string }[] = [
+  { value: 'all', label: 'Any' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
+
+const labelClass = 'mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground'
+const scrollRow = 'flex gap-2 overflow-x-auto px-1 pb-1 -mx-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+const chip = (selected: boolean) =>
+  `shrink-0 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
+    selected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-foreground hover:border-primary/50'
+  }`
+
+/** Normalizes the several shapes the tags endpoint has returned over time. */
+const toTagList = (response: unknown): string[] => {
+  const r = response as any
+  if (!r) return []
+  if (Array.isArray(r)) return r
+  if (Array.isArray(r.tags)) return r.tags
+  if (Array.isArray(r.data)) return r.data
+  if (Array.isArray(r.data?.tags)) return r.data.tags
+  return []
+}
+
+export function TransactionFilters({ value, onChange, wallets }: TransactionFiltersProps) {
+  const [showMore, setShowMore] = useState(false)
   const { data: tagsResponse } = useTransactionTags()
-  // Normalize possible response shapes:
-  // - ['tag1','tag2']
-  // - { tags: [...] }
-  // - { data: { tags: [...] } }
-  let availableTags: string[] = []
-  if (!tagsResponse) {
-    availableTags = []
-  } else if (Array.isArray(tagsResponse)) {
-    availableTags = tagsResponse
-  } else if (Array.isArray((tagsResponse as any).tags)) {
-    availableTags = (tagsResponse as any).tags
-  } else if (Array.isArray((tagsResponse as any).data)) {
-    availableTags = (tagsResponse as any).data
-  } else if (Array.isArray((tagsResponse as any).data?.tags)) {
-    availableTags = (tagsResponse as any).data.tags
+  const availableTags = toTagList(tagsResponse).map((tag: any) => (typeof tag === 'string' ? tag : tag?.tag)).filter(Boolean) as string[]
+
+  const set = (patch: Partial<FilterState>) => onChange({ ...value, ...patch })
+  const toggleTag = (tag: string) => {
+    const current = value.tags ?? []
+    set({ tags: current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag] })
   }
 
-  const toggleTag = (tag: string) => {
-    const current = filters.tags || []
-    const exists = current.includes(tag)
-    const updated = exists ? current.filter((t) => t !== tag) : [...current, tag]
-    handleFilterChange({ tags: updated })
-  }
+  const moreCount = (value.status && value.status !== 'all' ? 1 : 0) + (value.tags?.length ?? 0)
+  const isFiltered =
+    (value.type && value.type !== 'all') ||
+    !!value.walletId ||
+    !!value.search ||
+    moreCount > 0 ||
+    (value.dateRange ?? 'month') !== DEFAULT_FILTERS.dateRange
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 rounded-3xl border border-border bg-card p-4 shadow-ios sm:p-5">
       {/* Search */}
-      <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-primary transition-all">
-        <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      <div className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 focus-within:ring-2 focus-within:ring-primary">
+        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Search transactions..."
-          value={filters.search || ''}
-          onChange={(e) => handleFilterChange({ search: e.target.value })}
-          className="flex-1 bg-transparent border-0 outline-none text-sm placeholder:text-muted-foreground"
+          placeholder="Search by note"
+          aria-label="Search transactions"
+          value={value.search ?? ''}
+          onChange={(event) => set({ search: event.target.value })}
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
-        {filters.search && (
-          <button
-            onClick={() => handleFilterChange({ search: '' })}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-4 h-4" />
+        {value.search && (
+          <button type="button" onClick={() => set({ search: '' })} aria-label="Clear search" className="text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      {/* Filter Buttons */}
-      <div className="flex flex-wrap gap-2">
-        {/* Wallet Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              {filters.walletId && filters.walletId !== ''
-                ? `Wallet (${wallets?.find((w) => w.id === filters.walletId)?.name || filters.walletId})`
-                : 'All Wallets'}
-              <ChevronDown className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>Wallet</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleFilterChange({ walletId: '' })}>
-              All Wallets
-            </DropdownMenuItem>
-            {wallets?.map((w) => (
-              <DropdownMenuItem key={w.id} onClick={() => handleFilterChange({ walletId: w.id })}>
-                {w.name || w.id}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {/* Type Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              Type {filters.type && filters.type !== 'all' && `(${filters.type})`}
-              <ChevronDown className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>Transaction Type</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleFilterChange({ type: 'all' })}>
-              All Transactions
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ type: 'income' })}>
-              Income
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ type: 'expense' })}>
-              Expense
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ type: 'transfer' })}>
-              Transfer
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Status Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              Status {filters.status && filters.status !== 'all' && `(${filters.status})`}
-              <ChevronDown className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>Transaction Status</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleFilterChange({ status: 'all' })}>
-              All Statuses
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ status: 'completed' })}>
-              Completed
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ status: 'pending' })}>
-              Pending
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ status: 'cancelled' })}>
-              Cancelled
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Date Range Filter */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              {filters.dateRange && (filters.dateRange === 'all' ? 'All Time' : filters.dateRange?.charAt(0).toUpperCase() + filters.dateRange?.slice(1))}
-              <ChevronDown className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuLabel>Date Range</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => handleFilterChange({ dateRange: 'today' })}>
-              Today
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ dateRange: 'week' })}>
-              This Week
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ dateRange: 'month' })}>
-              This Month
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ dateRange: 'year' })}>
-              This Year
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleFilterChange({ dateRange: 'all' })}>
-              All Time
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {/* Tags Filter */}
-        <div className="w-full">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 w-full justify-between">
-                {filters.tags && filters.tags.length > 0 ? `Tags (${filters.tags.length})` : 'Tags'}
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel>Transaction Tags</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleFilterChange({ tags: [] })}>
-                Clear Tags
-              </DropdownMenuItem>
-              {availableTags.map((t) => (
-                <DropdownMenuItem key={t} onClick={() => toggleTag(t)}>
-                  <div className="flex items-center gap-2">
-                    <Check className={`w-4 h-4 ${filters.tags?.includes(t) ? 'opacity-100' : 'opacity-0'}`} />
-                    <span>{t}</span>
-                  </div>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        {/* Reset Button */}
-        {activeFilters > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleReset}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+      {/* Type */}
+      <div role="group" aria-label="Transaction type" className="grid grid-cols-4 gap-1 rounded-full bg-secondary p-1">
+        {TYPES.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={(value.type ?? 'all') === option.value}
+            onClick={() => set({ type: option.value })}
+            className={`rounded-full py-2 text-xs font-semibold transition-colors sm:text-sm ${
+              (value.type ?? 'all') === option.value ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+            }`}
           >
-            Clear Filters
-          </Button>
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {/* When */}
+      <div>
+        <p className={labelClass}>When</p>
+        <div className={scrollRow} role="group" aria-label="Date range">
+          {RANGES.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={(value.dateRange ?? 'month') === option.value}
+              onClick={() => set({ dateRange: option.value })}
+              className={chip((value.dateRange ?? 'month') === option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Wallet */}
+      {wallets && wallets.length > 1 && (
+        <div>
+          <p className={labelClass}>Wallet</p>
+          <div className={scrollRow} role="group" aria-label="Wallet">
+            <button type="button" aria-pressed={!value.walletId} onClick={() => set({ walletId: '' })} className={chip(!value.walletId)}>
+              All wallets
+            </button>
+            {wallets.map((wallet) => (
+              <button
+                key={wallet.id}
+                type="button"
+                aria-pressed={value.walletId === wallet.id}
+                onClick={() => set({ walletId: value.walletId === wallet.id ? '' : wallet.id })}
+                className={chip(value.walletId === wallet.id)}
+              >
+                {wallet.name || 'Wallet'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* More */}
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            aria-expanded={showMore}
+            onClick={() => setShowMore((open) => !open)}
+            className="flex items-center gap-1.5 text-sm font-semibold text-primary"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            More filters
+            {moreCount > 0 && <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">{moreCount}</span>}
+            <ChevronDown className={`h-4 w-4 transition-transform ${showMore ? 'rotate-180' : ''}`} />
+          </button>
+          {isFiltered && (
+            <button type="button" onClick={() => onChange(DEFAULT_FILTERS)} className="text-sm font-semibold text-destructive hover:underline">
+              Reset
+            </button>
+          )}
+        </div>
+
+        {showMore && (
+          <div className="mt-3 space-y-4">
+            <div>
+              <p className={labelClass}>Status</p>
+              <div className={scrollRow} role="group" aria-label="Status">
+                {STATUSES.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={(value.status ?? 'all') === option.value}
+                    onClick={() => set({ status: option.value })}
+                    className={chip((value.status ?? 'all') === option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {availableTags.length > 0 && (
+              <div>
+                <p className={labelClass}>Tags</p>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.map((tag) => {
+                    const selected = !!value.tags?.includes(tag)
+                    return (
+                      <button key={tag} type="button" aria-pressed={selected} onClick={() => toggleTag(tag)} className={`${chip(selected)} flex items-center gap-1`}>
+                        {selected && <Check className="h-3.5 w-3.5" />}
+                        {tag}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

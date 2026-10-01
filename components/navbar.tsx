@@ -18,8 +18,8 @@ import { BottomTabBar } from '@/components/nav/bottom-tab-bar'
 import { AccountSheet } from '@/components/nav/account-sheet'
 import { NAV_ITEMS, getPageTitle, isNavItemActive, isManageSubRoute } from '@/components/nav/nav-items'
 import { QuickAddSheet } from '@/components/page/transaction/quick-add-sheet'
+import { UserAvatar } from '@/components/ui/user-avatar'
 
-const getInitial = (value?: string) => (value ? value.trim().charAt(0).toUpperCase() : 'U')
 
 export default function DNavbar() {
   const history = useHistory()
@@ -83,7 +83,7 @@ export default function DNavbar() {
               className="flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground font-semibold text-sm"
               aria-label="Account"
             >
-              {getInitial(user?.username || user?.email)}
+              <UserAvatar user={user} className="size-9 text-sm" />
             </button>
           </div>
         </div>
@@ -153,7 +153,7 @@ export default function DNavbar() {
                   className="flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground font-semibold hover:shadow-md transition-all text-sm"
                   title="User menu"
                 >
-                  {getInitial(user?.username || user?.email)}
+                  <UserAvatar user={user} className="size-9 text-sm" />
                 </button>
 
                 {showUserMenu && (

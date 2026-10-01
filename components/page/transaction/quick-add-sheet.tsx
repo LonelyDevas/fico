@@ -285,7 +285,9 @@ export function QuickAddSheet({
                       <button key={id} type="button" onClick={() => selectWallet(id)} className={chip(walletId === id)}>
                         {wallet.name || 'Wallet'}
                         <span className="ml-1.5 text-xs opacity-70">
-                          {formatMoney(Number(wallet.balance ?? wallet.currentBalance ?? 0), wallet.currency || currency, hideAmountsOnOpen)}
+                          {wallet.type === 'credit_card' && wallet.creditLimit
+                            ? `${formatMoney(Math.max(0, Number(wallet.creditLimit) - Number(wallet.balance ?? 0)), wallet.currency || currency, hideAmountsOnOpen)} left`
+                            : formatMoney(Number(wallet.balance ?? wallet.currentBalance ?? 0), wallet.currency || currency, hideAmountsOnOpen)}
                         </span>
                       </button>
                     )

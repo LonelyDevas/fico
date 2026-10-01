@@ -1,4 +1,5 @@
-export type WalletType = 'bank' | 'cash' | 'ewallet' | 'credit_card' | 'other';
+export type WalletType = 'bank' | 'savings' | 'cash' | 'ewallet' | 'credit_card' | 'other';
+export type InterestPayout = 'monthly' | 'quarterly' | 'annually' | 'maturity';
 export type WalletStatus = 'active' | 'archived';
 
 export type CreateWalletData = {
@@ -10,6 +11,18 @@ export type CreateWalletData = {
   color?: string;
   description?: string;
   accountNumber?: string;
+  /** Catalog id from lib/ph-institutions.ts. */
+  institution?: string;
+  /** Credit cards only: the spending limit. `balance` is the amount used. */
+  creditLimit?: number;
+  /** Credit cards only: day of month the statement closes and the payment is due (1-28). */
+  statementDay?: number;
+  dueDay?: number;
+  /** Savings only. Annual interest %, payout schedule, tax withheld %, and end of term. */
+  interestRate?: number;
+  interestPayout?: InterestPayout;
+  interestTaxRate?: number;
+  maturityDate?: string;
 };
 
 export type UpdateWalletData = {
@@ -20,6 +33,17 @@ export type UpdateWalletData = {
   color?: string;
   description?: string;
   accountNumber?: string;
+  institution?: string;
+  /** Credit cards only: the spending limit. `balance` is the amount used. */
+  creditLimit?: number;
+  /** Credit cards only: day of month the statement closes and the payment is due (1-28). */
+  statementDay?: number;
+  dueDay?: number;
+  /** Savings only. Annual interest %, payout schedule, tax withheld %, and end of term. */
+  interestRate?: number;
+  interestPayout?: InterestPayout;
+  interestTaxRate?: number;
+  maturityDate?: string;
   status?: WalletStatus;
 };
 

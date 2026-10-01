@@ -53,6 +53,10 @@ export const useCreateObligation = () => {
     mutationFn: (data: CreateObligationData) => createObligation(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["obligations"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["obligation-summary"] });
     },
     onError: (error) => {
@@ -139,6 +143,10 @@ export const useUpdateObligation = () => {
     mutationFn: (data: UpdateObligationData) => updateObligation(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["obligations"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
     },
     onError: (error) => {
       handleApiError(error);
@@ -163,6 +171,10 @@ export const useArchiveObligation = () => {
     mutationFn: (data: { id: string }) => archiveObligation(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["obligations"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["obligation-summary"] });
     },
     onError: (error) => {
@@ -196,6 +208,10 @@ export const useRecordObligationPayment = () => {
     mutationFn: (data: RecordObligationPaymentData) => recordPayment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["obligations"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["obligation-summary"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },

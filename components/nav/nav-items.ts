@@ -9,11 +9,11 @@ export interface NavItem {
 }
 
 /** Pages that live under Manage. They get a back arrow to /manage on small screens. */
-export const MANAGE_ROUTES = ['/budgets', '/bills', '/categories', '/statistics', '/profile', '/settings']
+export const MANAGE_ROUTES = ['/budgets', '/bills', '/debts', '/investments', '/categories', '/statistics', '/profile', '/settings']
 
 /** The four main destinations, shared by the bottom tab bar and the desktop top nav. */
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'Today', href: '/dashboard', icon: Home },
+  { label: 'Home', href: '/dashboard', icon: Home },
   { label: 'Money', href: '/wallets', icon: Wallet },
   { label: 'Activity', href: '/transactions', icon: Receipt },
   { label: 'Manage', href: '/manage', icon: SlidersHorizontal, alsoActiveFor: MANAGE_ROUTES },
@@ -22,6 +22,8 @@ export const NAV_ITEMS: NavItem[] = [
 export const PAGE_TITLES: Record<string, string> = {
   '/budgets': 'Budgets',
   '/bills': 'Bills',
+  '/debts': 'Debts & loans',
+  '/investments': 'Investments',
   '/categories': 'Categories',
   '/statistics': 'Statistics',
   '/settings': 'Settings',

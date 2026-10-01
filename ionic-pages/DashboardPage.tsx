@@ -71,7 +71,7 @@ export default function DashboardPage() {
     endDate: format(addDays(today, 14), 'yyyy-MM-dd'),
   })
 
-  const firstName = (user?.username || user?.email?.split('@')[0] || 'there').split(/[\s._-]/)[0]
+  const firstName = user?.firstName || (user?.username || user?.email?.split('@')[0] || 'there').split(/[\s._-]/)[0]
   const periodPhrase = PERIODS.find((p) => p.value === period)?.phrase ?? 'this month'
 
   const wallets = useMemo(
@@ -82,12 +82,15 @@ export default function DashboardPage() {
           id: String(w._id ?? w.id ?? `wallet-${index}`),
           name: String(w.name ?? 'Wallet'),
           balance: Number(w.balance ?? w.currentBalance ?? 0),
+          isCard: w.type === 'credit_card',
         })),
     [walletsResponse]
   )
-  const totalBalance = wallets.reduce((sum, w) => sum + w.balance, 0)
+  // A credit card's balance is what you owe, so it reduces the total instead of adding to it.
+  const totalBalance = wallets.reduce((sum, w) => sum + (w.isCard ? -w.balance : w.balance), 0)
 
-  const stats = (statsResponse?.data as any)?.stats ?? {}
+  // Quick stats come back flat ({ income, expenses, transfers, transactions }).
+  const stats = (statsResponse?.data as any) ?? {}
   const income = Number(stats.income ?? 0)
   const expenses = Number(stats.expenses ?? 0)
 
@@ -246,7 +249,9 @@ export default function DashboardPage() {
                       className="min-w-[9.5rem] shrink-0 snap-start rounded-2xl border border-border bg-secondary/40 p-3 transition-colors hover:border-primary/50"
                     >
                       <span className="block truncate text-xs font-medium text-muted-foreground">{wallet.name}</span>
-                      <span className="mt-1 block text-lg font-semibold tabular-nums text-foreground">{money(wallet.balance)}</span>
+                      <span className="mt-1 block text-lg font-semibold tabular-nums text-foreground">
+                        {wallet.isCard ? `-${money(wallet.balance)}` : money(wallet.balance)}
+                      </span>
                     </Link>
                   ))}
                   <Link

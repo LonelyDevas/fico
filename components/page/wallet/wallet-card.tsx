@@ -1,24 +1,60 @@
 'use client'
 
-import { CreditCard, Wallet, DollarSign, Eye, EyeOff, MoreVertical, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { Archive, ArrowDownLeft, ArrowUpRight, Banknote, CreditCard, MoreHorizontal, Pencil, PiggyBank, Smartphone, Wallet } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { InstitutionLogo } from '@/components/ui/institution-logo'
+import { getInstitution } from '@/lib/ph-institutions'
 
 interface WalletCardProps {
   id: string
   name: string
-  type: 'bank' | 'cash' | 'ewallet' | 'credit_card' | 'other'
+  type: 'bank' | 'savings' | 'cash' | 'ewallet' | 'credit_card' | 'other'
   balance: number
   currency: string
   color?: string
   icon?: string
   accountNumber?: string
+  institution?: string
+  creditLimit?: number
+  dueDay?: number
+  interestRate?: number
+  interestPayout?: string
+  interestTaxRate?: number
+  maturityDate?: string
+  totalInterestEarned?: number
   status: 'active' | 'archived'
+  /** Overrides the "hide amounts on open" setting, so a page-level toggle can control every card. */
+  hideAmounts?: boolean
   onEdit?: (id: string) => void
   onArchive?: (id: string) => void
   onTransfer?: (id: string) => void
   onReceive?: (id: string) => void
+}
+
+const TYPE_ICON = {
+  bank: CreditCard,
+  savings: PiggyBank,
+  cash: Banknote,
+  ewallet: Smartphone,
+  credit_card: CreditCard,
+  other: Wallet,
+} as const
+
+const PAYOUT_WORD: Record<string, string> = {
+  monthly: 'monthly',
+  quarterly: 'quarterly',
+  annually: 'yearly',
+  maturity: 'at maturity',
+}
+
+/** Light brand colors (lime, yellow) need dark text to stay readable. */
+const isLight = (hex: string) => {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
+  if (!m) return false
+  const [r, g, b] = [m[1], m[2], m[3]].map((v) => parseInt(v, 16) / 255)
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.62
 }
 
 export function WalletCard({
@@ -28,161 +64,157 @@ export function WalletCard({
   balance,
   currency,
   color = '#0066CC',
-  icon,
-  accountNumber,
+  institution,
+  creditLimit,
+  dueDay,
+  interestRate,
+  interestPayout,
+  interestTaxRate,
+  totalInterestEarned = 0,
   status,
+  hideAmounts,
   onEdit,
   onArchive,
   onTransfer,
   onReceive,
 }: WalletCardProps) {
   const { hideAmountsOnOpen } = useSettingsStore()
-  const [showBalance, setShowBalance] = useState(!hideAmountsOnOpen)
+  const [hiddenLocal, setHiddenLocal] = useState(hideAmountsOnOpen)
   const [showMenu, setShowMenu] = useState(false)
 
   useEffect(() => {
-    setShowBalance(!hideAmountsOnOpen)
+    setHiddenLocal(hideAmountsOnOpen)
   }, [hideAmountsOnOpen])
 
-  const getWalletIcon = () => {
-    switch (type) {
-      case 'bank':
-        return <CreditCard className="w-6 h-6" />
-      case 'credit_card':
-        return <CreditCard className="w-6 h-6" />
-      case 'ewallet':
-        return <Wallet className="w-6 h-6" />
-      case 'cash':
-        return <DollarSign className="w-6 h-6" />
-      default:
-        return <Wallet className="w-6 h-6" />
-    }
-  }
+  const hidden = hideAmounts ?? hiddenLocal
+  const money = (value: number) => formatMoney(value, currency, hidden)
+  const known = getInstitution(institution)
+  const TypeIcon = TYPE_ICON[type]
+  const archived = status === 'archived'
 
-  const getWalletLabel = () => {
-    const labels: Record<string, string> = {
-      bank: 'Bank Account',
-      cash: 'Cash',
-      ewallet: 'E-Wallet',
-      credit_card: 'Credit Card',
-      other: 'Other',
-    }
-    return labels[type]
-  }
+  const dark = isLight(color)
+  const text = dark ? 'text-[#0F1419]' : 'text-white'
+  const soft = dark ? 'text-[#0F1419]/65' : 'text-white/75'
+  const track = dark ? 'bg-black/15' : 'bg-white/30'
+  const fill = dark ? 'bg-[#0F1419]/70' : 'bg-white'
 
-  const displayBalance = formatMoney(balance, currency, !showBalance)
+  const isCard = type === 'credit_card'
+  const hasLimit = isCard && !!creditLimit && creditLimit > 0
+  const usedPct = hasLimit ? Math.min(100, Math.max(0, (balance / (creditLimit as number)) * 100)) : 0
+  const isSavings = type === 'savings'
+  const putIn = Math.max(0, balance - totalInterestEarned)
+
+  const kindLabel = isCard ? 'Credit' : type === 'cash' ? 'Cash' : type === 'other' ? 'Other' : 'Debit'
+  const subtitle = [
+    kindLabel,
+    currency,
+    isCard && dueDay ? `due day ${dueDay}` : null,
+    isSavings && interestRate ? `${interestRate}% ${PAYOUT_WORD[interestPayout ?? 'monthly'] ?? 'yearly'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' • ')
+
+  void interestTaxRate
 
   return (
     <div
-      className="group relative bg-gradient-to-br from-card to-secondary border border-border rounded-2xl p-6 shadow-ios hover:shadow-ios-lg transition-all duration-300 overflow-hidden"
-      style={{
-        borderColor: color,
-      }}
+      className={`group relative flex min-h-[10.5rem] flex-col overflow-hidden rounded-3xl p-4 shadow-ios transition-shadow hover:shadow-ios-lg ${text}`}
+      style={{ backgroundColor: color }}
     >
-      {/* Background accent */}
-      <div
-        className="absolute -top-12 -right-12 w-40 h-40 rounded-full opacity-10 blur-3xl"
-        style={{ backgroundColor: color }}
-      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/15" aria-hidden="true" />
 
-      {/* Header with icon and menu */}
-      <div className="relative z-10 flex items-start justify-between mb-8">
-        <div
-          className="p-3 rounded-2xl text-white"
-          style={{ backgroundColor: color }}
-        >
-          {getWalletIcon()}
+      <div className="relative flex items-start gap-2.5">
+        {known ? (
+          <InstitutionLogo institution={known} variant="glass" className="size-10 rounded-xl" />
+        ) : (
+          <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${dark ? 'bg-black/10' : 'bg-white/20'}`}>
+            <TypeIcon className="h-5 w-5" />
+          </span>
+        )}
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h3 className="truncate text-sm font-semibold leading-tight">{name}</h3>
+          <p className={`mt-0.5 truncate text-[11px] ${soft}`}>{subtitle}</p>
         </div>
 
-        {status === 'active' && (
-          <div className="relative">
+        {!archived && (
+          <div className="relative -mr-1.5 -mt-1">
             <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-2 rounded-lg hover:bg-secondary transition-colors opacity-0 group-hover:opacity-100"
+              type="button"
+              onClick={() => setShowMenu((open) => !open)}
+              aria-label={`${name} actions`}
+              className="rounded-full p-1.5 opacity-80 hover:bg-black/10 hover:opacity-100"
             >
-              <MoreVertical className="w-4 h-4 text-muted-foreground" />
+              <MoreHorizontal className="h-5 w-5" />
             </button>
-
             {showMenu && (
-              <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-2xl shadow-ios-lg py-1 z-50">
-                <button
-                  onClick={() => {
-                    onEdit?.(id)
-                    setShowMenu(false)
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors"
-                >
-                  Edit Wallet
-                </button>
-                <button
-                  onClick={() => {
-                    onTransfer?.(id)
-                    setShowMenu(false)
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-secondary transition-colors"
-                >
-                  Transfer Money
-                </button>
-                <hr className="my-1 border-border" />
-                <button
-                  onClick={() => {
-                    onArchive?.(id)
-                    setShowMenu(false)
-                  }}
-                  className="w-full text-left px-4 py-2 text-sm text-destructive hover:bg-secondary transition-colors"
-                >
-                  Archive
-                </button>
-              </div>
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 z-50 mt-1 w-44 overflow-hidden rounded-2xl border border-border bg-card py-1 text-foreground shadow-ios-lg">
+                  {[
+                    { label: 'Edit', icon: Pencil, run: onEdit },
+                    { label: 'Send money', icon: ArrowUpRight, run: onTransfer },
+                    { label: 'Receive money', icon: ArrowDownLeft, run: onReceive },
+                  ].map(({ label, icon: Icon, run }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        run?.(id)
+                        setShowMenu(false)
+                      }}
+                      className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm hover:bg-secondary"
+                    >
+                      <Icon className="h-4 w-4" />
+                      {label}
+                    </button>
+                  ))}
+                  <hr className="my-1 border-border" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onArchive?.(id)
+                      setShowMenu(false)
+                    }}
+                    className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm text-destructive hover:bg-secondary"
+                  >
+                    <Archive className="h-4 w-4" />
+                    Archive
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
       </div>
 
-      {/* Wallet Info */}
-      <div className="relative z-10 mb-6">
-        <p className="text-sm text-muted-foreground mb-1">{getWalletLabel()}</p>
-        <h3 className="text-lg font-semibold text-foreground">{name}</h3>
-        {accountNumber && (
-          <p className="text-xs text-muted-foreground mt-1">••••{accountNumber.slice(-4)}</p>
+      <div className="relative mt-auto pt-5">
+        {hasLimit ? (
+          <>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-semibold uppercase tracking-wider ${soft}`}>Used credit</span>
+              <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${track}`}>
+                <div className={`h-full rounded-full ${fill}`} style={{ width: `${usedPct}%` }} />
+              </div>
+            </div>
+            <div className={`mt-1 flex justify-between text-[11px] ${soft}`}>
+              <span>{usedPct.toFixed(0)}% used</span>
+              <span className="tabular-nums">{money(Math.max(0, (creditLimit as number) - balance))} left</span>
+            </div>
+          </>
+        ) : (
+          <p className={`text-[10px] font-semibold uppercase tracking-wider ${soft}`}>{isCard ? 'Used credit' : 'Balance'}</p>
+        )}
+        <p className="mt-0.5 truncate font-heading text-xl font-bold tabular-nums">{money(balance)}</p>
+        {isSavings && totalInterestEarned > 0 && (
+          <p className={`mt-0.5 truncate text-[11px] tabular-nums ${soft}`}>
+            Put in {money(putIn)} · Earned {money(totalInterestEarned)}
+          </p>
         )}
       </div>
 
-      {/* Balance */}
-      <div className="relative z-10 mb-6">
-        <p className="text-xs text-muted-foreground mb-2">Balance</p>
-        <div className="flex items-center justify-between">
-          <p className="text-2xl font-bold text-foreground">{displayBalance}</p>
-          <button
-            onClick={() => setShowBalance(!showBalance)}
-            className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-          >
-            {showBalance ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="relative z-10 flex gap-2">
-        <button
-          onClick={() => onTransfer?.(id)}
-          className="flex-1 px-3 py-2 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-        >
-          <ArrowUpRight className="w-4 h-4" />
-          <span className="hidden sm:inline">Send</span>
-        </button>
-        <button
-          onClick={() => onReceive?.(id)}
-          className="flex-1 px-3 py-2 rounded-full bg-secondary text-foreground hover:bg-secondary/80 transition-colors text-sm font-medium flex items-center justify-center gap-2"
-        >
-          <ArrowDownLeft className="w-4 h-4" />
-          <span className="hidden sm:inline">Receive</span>
-        </button>
-      </div>
-
-      {status === 'archived' && (
-        <div className="absolute inset-0 bg-background/50 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-          <span className="text-sm font-medium text-muted-foreground">Archived</span>
+      {archived && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+          <span className="rounded-full bg-card px-3 py-1 text-xs font-semibold text-muted-foreground shadow-ios">Archived</span>
         </div>
       )}
     </div>

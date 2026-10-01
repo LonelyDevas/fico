@@ -17,6 +17,8 @@ import StatisticsPage from '@/ionic-pages/StatisticsPage';
 import ManagePage from '@/ionic-pages/ManagePage';
 import BillsPage from '@/ionic-pages/BillsPage';
 import BudgetsPage from '@/ionic-pages/BudgetsPage';
+import DebtsPage from '@/ionic-pages/DebtsPage';
+import InvestmentsPage from '@/ionic-pages/InvestmentsPage';
 import CategoriesPage from '@/ionic-pages/CategoriesPage';
 import SettingsPage from '@/ionic-pages/SettingsPage';
 import ProfilePage from '@/ionic-pages/ProfilePage';
@@ -51,6 +53,8 @@ const GuardedStatistics = withAuth(StatisticsPage);
 const GuardedManage = withAuth(ManagePage);
 const GuardedBills = withAuth(BillsPage);
 const GuardedBudgets = withAuth(BudgetsPage);
+const GuardedDebts = withAuth(DebtsPage);
+const GuardedInvestments = withAuth(InvestmentsPage);
 const GuardedCategories = withAuth(CategoriesPage);
 const GuardedSettings = withAuth(SettingsPage);
 const GuardedProfile = withAuth(ProfilePage);
@@ -85,6 +89,8 @@ function AppShellInner() {
           <Route exact path="/manage" component={GuardedManage} />
           <Route exact path="/bills" component={GuardedBills} />
           <Route exact path="/budgets" component={GuardedBudgets} />
+          <Route exact path="/debts" component={GuardedDebts} />
+          <Route exact path="/investments" component={GuardedInvestments} />
           <Route exact path="/categories" component={GuardedCategories} />
           <Route exact path="/settings" component={GuardedSettings} />
           <Route exact path="/profile" component={GuardedProfile} />

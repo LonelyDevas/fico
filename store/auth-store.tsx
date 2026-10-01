@@ -100,11 +100,21 @@ export function useSupabaseAuthSync() {
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('username, status')
+        .select('*')
         .eq('id', session.user.id)
         .maybeSingle();
 
+      // Name fields live in user_details; a missing row or an error just means no name yet.
+      const { data: details } = await supabase
+        .from('user_details')
+        .select('firstname, lastname')
+        .eq('owner_id', session.user.id)
+        .maybeSingle();
+
       if (cancelled) return;
+
+      const meta = session.user.user_metadata ?? {}
+      const googlePhoto: string | undefined = meta.avatar_url || meta.picture || undefined
 
       setAuth({
         _id: session.user.id,
@@ -112,6 +122,11 @@ export function useSupabaseAuthSync() {
         email: session.user.email ?? '',
         status: profile?.status ?? 'active',
         provider: session.user.app_metadata?.provider ?? 'local',
+        firstName: details?.firstname ?? undefined,
+        lastName: details?.lastname ?? undefined,
+        googleAvatarUrl: googlePhoto,
+        // An explicit choice (including '' = none) wins; otherwise use the Google photo.
+        avatarUrl: profile?.avatar_url ?? googlePhoto,
         exp: session.expires_at ?? 0,
         iat: 0,
       });

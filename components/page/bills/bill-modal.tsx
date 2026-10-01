@@ -274,6 +274,7 @@ export function BillModal({ open, onClose, onSuccess, bill }: BillModalProps) {
                   {wallets.map((w: any) => (
                     <SelectItem key={w._id || w.id} value={String(w._id || w.id)}>
                       {w.name}
+                      {w.type === 'credit_card' ? ' (credit card)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

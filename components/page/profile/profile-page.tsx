@@ -1,17 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useHistory } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { KeyRound, LogOut, Mail, Shield, User as UserIcon } from 'lucide-react'
+import { Camera, IdCard, KeyRound, LogOut, Mail, Shield, Trash2, Upload, User as UserIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/store/auth-store'
-import { useLogout, useUpdatePassword, useUpdateUsername } from '@/queries/auth/auth'
-
-const getInitial = (value?: string) => (value ? value.trim().charAt(0).toUpperCase() : 'U')
+import { UserAvatar } from '@/components/ui/user-avatar'
+import { useLogout, useUpdateAvatar, useUpdateName, useUpdatePassword, useUpdateUsername } from '@/queries/auth/auth'
 
 export function ProfilePageContent() {
   const history = useHistory()
@@ -20,12 +19,56 @@ export function ProfilePageContent() {
   const clearAuth = useAuthStore((state) => state.clearAuth)
 
   const [username, setUsername] = useState(user?.username ?? '')
+  const [firstName, setFirstName] = useState(user?.firstName ?? '')
+  const [lastName, setLastName] = useState(user?.lastName ?? '')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
   const { mutate: updateUsername, isPending: isSavingUsername } = useUpdateUsername()
   const { mutate: updatePassword, isPending: isSavingPassword } = useUpdatePassword()
   const { mutate: logout } = useLogout()
+  const { mutate: updateName, isPending: isSavingName } = useUpdateName()
+  const { mutate: updateAvatar, isPending: isSavingAvatar } = useUpdateAvatar()
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  const changeAvatar = (args: { file?: File; url?: string }, message: string) => {
+    if (!user) return
+    updateAvatar(
+      { userId: user._id, ...args },
+      {
+        onSuccess: (avatarUrl) => {
+          setAuth({ ...user, avatarUrl })
+          toast.success(message)
+        },
+      }
+    )
+  }
+
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) changeAvatar({ file }, 'Profile picture updated')
+  }
+
+  const canUseGoogle = !!user?.googleAvatarUrl && user.avatarUrl !== user.googleAvatarUrl
+
+  const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+  const nameChanged = firstName.trim() !== (user?.firstName ?? '') || lastName.trim() !== (user?.lastName ?? '')
+
+  const handleSaveName = () => {
+    if (!user || !nameChanged) return
+    const first = firstName.trim()
+    const last = lastName.trim()
+    updateName(
+      { userId: user._id, firstName: first, lastName: last },
+      {
+        onSuccess: () => {
+          setAuth({ ...user, firstName: first, lastName: last })
+          toast.success('Name updated')
+        },
+      }
+    )
+  }
 
   const usernameChanged = username.trim() !== '' && username.trim() !== user?.username
 
@@ -74,19 +117,83 @@ export function ProfilePageContent() {
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <section className="relative overflow-hidden rounded-3xl border border-border/70 bg-gradient-to-br from-card via-background to-secondary/40 p-6 shadow-ios">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary text-2xl font-semibold text-primary-foreground">
-            {getInitial(user?.username || user?.email)}
+          <div className="relative shrink-0">
+            <UserAvatar user={user} className="size-20 text-3xl" />
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              disabled={isSavingAvatar}
+              aria-label="Change profile picture"
+              className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border-2 border-card bg-primary text-primary-foreground shadow-ios disabled:opacity-60"
+            >
+              <Camera className="size-4" />
+            </button>
+            <input ref={fileInput} type="file" accept="image/*" onChange={handleFile} className="hidden" />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold tracking-tight text-foreground">{user?.username || 'Account'}</h1>
-            <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
+            <h1 className="truncate text-2xl font-bold tracking-tight text-foreground">{fullName || user?.username || 'Account'}</h1>
+            <p className="truncate text-sm text-muted-foreground">
+              {fullName && user?.username ? `@${user.username} · ` : ''}
+              {user?.email}
+            </p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge variant="secondary" className="capitalize">{user?.status ?? 'active'}</Badge>
               <Badge variant="outline" className="capitalize">{user?.provider ?? 'local'}</Badge>
             </div>
           </div>
         </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" className="gap-1.5 rounded-full" disabled={isSavingAvatar} onClick={() => fileInput.current?.click()}>
+            <Upload className="size-4" />
+            {isSavingAvatar ? 'Saving...' : 'Upload photo'}
+          </Button>
+          {canUseGoogle && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1.5 rounded-full"
+              disabled={isSavingAvatar}
+              onClick={() => changeAvatar({ url: user?.googleAvatarUrl }, 'Using your Google photo')}
+            >
+              Use Google photo
+            </Button>
+          )}
+          {!!user?.avatarUrl && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="gap-1.5 rounded-full text-destructive hover:text-destructive"
+              disabled={isSavingAvatar}
+              onClick={() => changeAvatar({}, 'Profile picture removed')}
+            >
+              <Trash2 className="size-4" />
+              Remove
+            </Button>
+          )}
+        </div>
       </section>
+
+      <Card className="border-border/70 bg-card/90 shadow-ios backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <IdCard className="size-4" />
+            Name
+          </CardTitle>
+          <CardDescription>Your first and last name, shown on your profile and in greetings.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input placeholder="First name" aria-label="First name" value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+            <Input placeholder="Last name" aria-label="Last name" value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+          </div>
+          <Button className="mt-3" onClick={handleSaveName} disabled={!nameChanged || isSavingName}>
+            {isSavingName ? 'Saving...' : 'Save name'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="border-border/70 bg-card/90 shadow-ios backdrop-blur-sm">
         <CardHeader>

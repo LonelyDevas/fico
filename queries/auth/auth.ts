@@ -2,6 +2,7 @@
 import { axiosInstance } from "@/utils/axios-instance";
 import { supabase } from "@/utils/supabase-client";
 import { handleApiError } from "@/utils/error-handler";
+import { resizeToSquareJpeg } from "@/utils/image";
 import { RegisterFormData } from "@/validation/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
@@ -179,6 +180,59 @@ export const useUpdateUsername = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auth'] });
     },
+    onError: (error) => {
+      handleApiError(error);
+    },
+  });
+};
+
+// Profile picture. `file` uploads a new picture; `url` sets one directly (the
+// Google photo); neither clears it. Returns the URL now stored ('' = none).
+const updateAvatarSupabase = async ({ userId, file, url }: { userId: string; file?: File; url?: string }) => {
+  let next = url ?? '';
+  const path = `${userId}/avatar.jpg`;
+
+  if (file) {
+    if (!file.type.startsWith('image/')) throw new Error('Please choose an image file.');
+    if (file.size > 10 * 1024 * 1024) throw new Error('That image is too large. Choose one under 10 MB.');
+    const blob = await resizeToSquareJpeg(file);
+    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, blob, {
+      upsert: true,
+      contentType: 'image/jpeg',
+    });
+    if (uploadError) throw uploadError;
+    // The path never changes, so add a version to bypass browser and CDN caches.
+    next = `${supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
+  } else if (!url) {
+    // Clearing: delete the stored file, best effort.
+    await supabase.storage.from('avatars').remove([path]);
+  }
+
+  const { error } = await supabase.from('profiles').update({ avatar_url: next }).eq('id', userId);
+  if (error) throw error;
+  return next;
+};
+
+export const useUpdateAvatar = () => {
+  return useMutation({
+    mutationFn: (args: { userId: string; file?: File; url?: string }) => updateAvatarSupabase(args),
+    onError: (error) => {
+      handleApiError(error);
+    },
+  });
+};
+
+const updateNameSupabase = async ({ userId, firstName, lastName }: { userId: string; firstName: string; lastName: string }) => {
+  const { error } = await supabase
+    .from('user_details')
+    .upsert({ owner_id: userId, firstname: firstName, lastname: lastName }, { onConflict: 'owner_id' });
+  if (error) throw error;
+  return { message: 'success' };
+};
+
+export const useUpdateName = () => {
+  return useMutation({
+    mutationFn: (args: { userId: string; firstName: string; lastName: string }) => updateNameSupabase(args),
     onError: (error) => {
       handleApiError(error);
     },

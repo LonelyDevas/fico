@@ -169,6 +169,9 @@ export const useMarkBillPaid = () => {
     mutationFn: (data: MarkPaidData) => markPaid(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
       queryClient.invalidateQueries({ queryKey: ["bill-summary"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
       queryClient.invalidateQueries({ queryKey: ["overdue-bills"] });

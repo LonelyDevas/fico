@@ -37,6 +37,14 @@ const createWallet = async (data: CreateWalletData) => {
         color: data.color,
         description: data.description,
         account_number: data.accountNumber,
+        institution: data.institution,
+        credit_limit: data.creditLimit,
+        statement_day: data.statementDay,
+        due_day: data.dueDay,
+        interest_rate: data.interestRate,
+        interest_payout: data.interestPayout,
+        interest_tax_rate: data.interestTaxRate,
+        maturity_date: data.maturityDate || null,
       })
       .select()
       .single();
@@ -127,6 +135,14 @@ const updateWallet = async (data: UpdateWalletData) => {
         color: rest.color,
         description: rest.description,
         account_number: rest.accountNumber,
+        institution: rest.institution,
+        credit_limit: rest.creditLimit,
+        statement_day: rest.statementDay,
+        due_day: rest.dueDay,
+        interest_rate: rest.interestRate,
+        interest_payout: rest.interestPayout,
+        interest_tax_rate: rest.interestTaxRate,
+        maturity_date: rest.maturityDate || null,
         status: rest.status,
       })
       .eq('id', id);
@@ -253,5 +269,26 @@ export const useTotalBalance = (params?: ListWalletsParams) => {
     queryKey: ["wallet-total-balance", params],
     queryFn: () => getTotalBalance(params || {}),
     enabled: true,
+  });
+};
+
+// Opens (or updates) the "<card> payment" bill for every credit card that has a
+// due day. Safe to call repeatedly; it only changes bills tied to a card.
+export const useSyncCardBills = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!isSupabase()) return 0;
+      const { data, error } = await supabase.rpc('cards_sync_bills');
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["bill-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["overdue-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
+    },
   });
 };

@@ -49,6 +49,10 @@ export const useCreateInvestment = () => {
     mutationFn: (data: CreateInvestmentData) => createInvestment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["investment-summary"] });
     },
     onError: (error) => {
@@ -125,6 +129,10 @@ export const useUpdateInvestment = () => {
     mutationFn: (data: UpdateInvestmentData) => updateInvestment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
     },
     onError: (error) => {
       handleApiError(error);
@@ -149,6 +157,10 @@ export const useArchiveInvestment = () => {
     mutationFn: (data: { id: string }) => archiveInvestment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["investment-summary"] });
     },
     onError: (error) => {
@@ -180,6 +192,10 @@ export const useUpdateInvestmentValue = () => {
     mutationFn: (data: UpdateInvestmentValueData) => updateValue(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["investment-summary"] });
     },
     onError: (error) => {
@@ -212,6 +228,10 @@ export const useRecordInvestmentReturn = () => {
     mutationFn: (data: RecordInvestmentReturnData) => recordReturn(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },
     onError: (error) => {
@@ -244,6 +264,10 @@ export const useSellInvestment = () => {
     mutationFn: (data: SellInvestmentData) => sellInvestment(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["investments"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["investment-summary"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },

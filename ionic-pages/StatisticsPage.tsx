@@ -51,7 +51,7 @@ export default function StatisticsPage() {
     }
   }, [topCategoriesResponse])
 
-  const quickStats = quickStatsResponse?.data?.stats || {}
+  const quickStats = quickStatsResponse?.data || {}
   const expenseValue = Number(quickStats.expenses ?? 0)
   const incomeValue = Number(quickStats.income ?? 0)
   const transferValue = Number(quickStats.transfers ?? 0)

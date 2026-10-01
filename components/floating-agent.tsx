@@ -3,12 +3,15 @@
 import { EmptyState, PeacockAvatar, PeacockMascot } from '@/components/peacock-mascot'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuickStats } from '@/queries/user/transaction/transaction'
+import { useQuickStats, useTopCategories } from '@/queries/user/transaction/transaction'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { useListCategories } from '@/queries/user/category/categories'
-import { X, MessageCircle, Plus, Send, Camera, Loader2, CheckCircle2 } from 'lucide-react'
+import { X, Plus, Send, Camera, CheckCircle2, ChevronDown, Sparkles, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
 import { CreateTransactionModal } from '@/components/page/transaction/create-transaction-modal'
 import { parseTransactionText } from '@/utils/transaction-parser'
+import { useSettingsStore } from '@/store/settings-store'
+import { formatMoney } from '@/utils/formatter'
+import { getCategoryTotal, normalizeCategoryData } from '@/components/page/statistics/statistics-utils'
 import type { CreateTransactionData } from '@/types/transaction'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +40,30 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/** Renders the **bold** markers used in agent replies instead of showing the asterisks. */
+function RichText({ text }: { text: string }) {
+  return (
+    <span className="whitespace-pre-wrap">
+      {text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+        part.startsWith('**') && part.endsWith('**') ? (
+          <strong key={i} className="font-semibold">
+            {part.slice(2, -2)}
+          </strong>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </span>
+  )
+}
+
+const SUGGESTIONS = ['Spent 150 on lunch', 'Received 5000 freelance', 'Transfer 1000 from BPI to GCash']
+
+const chipClass = (selected: boolean) =>
+  `shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+    selected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-foreground hover:border-primary/50'
+  }`
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -45,6 +72,8 @@ export function FloatingAgent() {
   const { data: quickStatsResponse } = useQuickStats()
   const { data: walletsResponse } = useListWallets()
   const { data: categoriesResponse } = useListCategories()
+  const { data: topCategoriesResponse } = useTopCategories({ period: 'month', type: 'expense' })
+  const { currency } = useSettingsStore()
 
   const [isOpen, setIsOpen] = useState(false)
   const [isHidden, setIsHidden] = useState(false)
@@ -67,7 +96,14 @@ export function FloatingAgent() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const insight = (quickStatsResponse?.data?.topCategory as any)?.insight as string | undefined
+  const topCategories = normalizeCategoryData(topCategoriesResponse?.data)
+  const spendTotal = getCategoryTotal(topCategories)
+  const monthIncome = Number((quickStatsResponse?.data as any)?.income ?? 0)
+  const monthExpenses = Number((quickStatsResponse?.data as any)?.expenses ?? 0)
+  const insight =
+    topCategories.length > 0 && spendTotal > 0
+      ? `Most of your spending this month went to ${topCategories[0].name}, about ${Math.round((topCategories[0].amount / spendTotal) * 100)}% of the total (${formatMoney(topCategories[0].amount, currency, false)}).`
+      : undefined
 
   const wallets: any[] = (walletsResponse?.data as any)?.items ??
     (Array.isArray(walletsResponse?.data) ? (walletsResponse.data as any[]) : [])
@@ -305,14 +341,18 @@ export function FloatingAgent() {
     return createPortal(
       <button
         onClick={() => setIsHidden(false)}
-        className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] right-4 z-40 lg:bottom-6 lg:right-6 flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg transition-all duration-300 text-sm font-medium"
+        className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] right-4 z-40 flex items-center gap-2 rounded-full border border-border bg-card py-1.5 pl-1.5 pr-4 text-sm font-semibold text-foreground shadow-ios transition-colors hover:border-primary/50 lg:bottom-6 lg:right-6"
       >
-        <MessageCircle size={16} />
+        <PeacockAvatar className="h-8 w-8" />
         Show Fico
       </button>,
       document.body
     )
   }
+
+  const isTransfer = pendingTransaction?.type === 'transfer'
+  const showSuggestions = mode === 'create' && messages.length <= 1 && !isProcessing && !isOcring && !showWalletPicker
+  const busy = isProcessing || isOcring
 
   // ---------------------------------------------------------------------------
   // Render: main
@@ -321,78 +361,99 @@ export function FloatingAgent() {
     <>
       <div className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] right-4 z-50 lg:bottom-6 lg:right-6">
 
-        {/* ── Expanded Panel ── */}
+        {/* ── Panel ── */}
         <div
-          className={`absolute bottom-0 right-0 transition-all duration-300 ease-out origin-bottom-right ${
-            isOpen ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-75 pointer-events-none'
+          className={`absolute bottom-[4.75rem] right-0 origin-bottom-right transition-all duration-300 ease-out ${
+            isOpen ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0'
           }`}
+          aria-hidden={!isOpen}
         >
           <div
-            className="bg-card border border-border rounded-2xl shadow-2xl w-80 sm:w-96 flex flex-col overflow-hidden"
-            style={{ maxHeight: '560px' }}
+            role="dialog"
+            aria-label="Fico"
+            className="flex w-[calc(100vw-2rem)] max-w-[24rem] flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-ios-lg"
+            style={{ maxHeight: 'min(38rem, calc(100dvh - var(--bottom-nav-h) - 7rem))' }}
           >
-
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 p-3 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <PeacockAvatar className="w-7 h-7" />
-                <span className="text-white font-semibold text-sm">Fico</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                {/* Mode tabs */}
-                <div className="flex bg-white/20 rounded-lg p-0.5 text-xs">
-                  <button
-                    onClick={() => switchMode('insight')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-                      mode === 'insight' ? 'bg-white text-blue-600' : 'text-white hover:bg-white/20'
-                    }`}
-                  >
-                    Insight
-                  </button>
-                  <button
-                    onClick={() => switchMode('create')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors flex items-center gap-1 ${
-                      mode === 'create' ? 'bg-white text-blue-600' : 'text-white hover:bg-white/20'
-                    }`}
-                  >
-                    <Plus size={10} />Add
-                  </button>
+            <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-primary to-[#004C99] px-4 pb-3 pt-4 text-white">
+              <svg viewBox="0 0 200 200" className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 opacity-20" aria-hidden="true">
+                <g transform="translate(120 110)">
+                  <circle r="70" fill="#00D9CC" />
+                  <circle r="48" fill="#0066CC" />
+                  <circle r="28" fill="#00D9CC" />
+                  <circle r="11" fill="#2ECC71" />
+                </g>
+              </svg>
+              <div className="relative flex items-center gap-3">
+                <PeacockAvatar className="h-11 w-11 ring-2 ring-white/40" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-heading text-base font-semibold leading-tight">Fico</p>
+                  <p className="text-xs text-white/75">Your money buddy</p>
                 </div>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="text-white hover:bg-white/20 rounded-full p-1 transition-colors"
-                >
-                  <X size={16} />
+                <button onClick={() => setIsOpen(false)} aria-label="Close Fico" className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white">
+                  <ChevronDown size={20} />
                 </button>
+              </div>
+              <div role="group" aria-label="Fico mode" className="relative mt-3 grid grid-cols-2 gap-1 rounded-full bg-white/15 p-1 text-sm font-semibold">
+                {([
+                  ['insight', 'Insights'],
+                  ['create', 'Add by chat'],
+                ] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => switchMode(value)}
+                    aria-pressed={mode === value}
+                    className={`rounded-full py-1.5 transition-colors ${mode === value ? 'bg-white text-primary' : 'text-white/85 hover:text-white'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* ── INSIGHT MODE ── */}
             {mode === 'insight' && (
-              <div className="p-5 space-y-4 overflow-y-auto">
-                {insight ? (
-                  <div className="flex items-end gap-2">
-                    <PeacockMascot pose="advisor" className="w-24 h-24 shrink-0" label="Fico, your financial advisor" />
-                    <div className="relative min-w-0 flex-1 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border border-blue-200 dark:border-blue-700 rounded-2xl rounded-bl-md p-3">
-                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">Fico</p>
-                      <p className="text-sm text-gray-800 dark:text-gray-100 leading-relaxed">{insight}</p>
-                    </div>
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+                <div className="flex items-end gap-1">
+                  <PeacockMascot pose="advisor" className="-mb-1 h-24 w-24 shrink-0" label="Fico, your financial advisor" />
+                  <div className="relative mb-2 min-w-0 flex-1 rounded-2xl rounded-bl-md border border-border bg-secondary/60 p-3">
+                    <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
+                      <Sparkles size={12} />
+                      Fico noticed
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-foreground">
+                      {insight ?? 'Add a few transactions and I will start spotting patterns in your spending.'}
+                    </p>
                   </div>
-                ) : (
-                  <div className="py-4">
-                    <EmptyState compact pose="advisor" title="No insights yet" description="Keep tracking your transactions!" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl bg-secondary/60 p-3">
+                    <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                      <ArrowDownLeft size={13} className="text-success" />
+                      In this month
+                    </p>
+                    <p className="mt-1 truncate text-base font-semibold tabular-nums text-foreground">{formatMoney(monthIncome, currency, false)}</p>
                   </div>
-                )}
-                <div className="flex gap-2 pt-1">
+                  <div className="rounded-2xl bg-secondary/60 p-3">
+                    <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                      <ArrowUpRight size={13} className="text-warning" />
+                      Out this month
+                    </p>
+                    <p className="mt-1 truncate text-base font-semibold tabular-nums text-foreground">{formatMoney(monthExpenses, currency, false)}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
                   <button
                     onClick={() => switchMode('create')}
-                    className="flex-1 flex items-center justify-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium transition-colors"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-ios transition-opacity hover:opacity-90"
                   >
-                    <Plus size={12} /> Add Transaction
+                    <Plus size={16} /> Add a transaction
                   </button>
                   <button
                     onClick={() => { setIsOpen(false); setIsHidden(true) }}
-                    className="flex-1 text-xs text-muted-foreground hover:text-foreground py-2 border border-border rounded-lg hover:bg-secondary transition-colors"
+                    className="rounded-full border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   >
                     Hide
                   </button>
@@ -402,98 +463,98 @@ export function FloatingAgent() {
 
             {/* ── CREATE MODE ── */}
             {mode === 'create' && (
-              <div className="flex flex-col flex-1 min-h-0">
+              <div className="flex min-h-0 flex-1 flex-col">
 
                 {/* Messages */}
-                <div
-                  className="flex-1 overflow-y-auto p-3 space-y-3"
-                  style={{ minHeight: '200px', maxHeight: '370px' }}
-                >
+                <div className="min-h-[14rem] flex-1 space-y-3 overflow-y-auto p-4">
                   {messages.map(msg => (
-                    <div key={msg.id} className={`flex items-end gap-1 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      {msg.role === 'agent' && <PeacockAvatar className="w-5 h-5 mb-0.5" />}
+                    <div key={msg.id} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      {msg.role === 'agent' && <PeacockAvatar className="mb-0.5 h-6 w-6" />}
                       <div
-                        className={`max-w-[82%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+                        className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                           msg.role === 'user'
-                            ? 'bg-blue-500 text-white rounded-br-sm'
-                            : 'bg-secondary text-foreground rounded-bl-sm'
+                            ? 'rounded-br-md bg-primary text-primary-foreground'
+                            : 'rounded-bl-md bg-secondary text-foreground'
                         }`}
                       >
                         {msg.imagePreview && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={msg.imagePreview} alt="Receipt" className="rounded-lg mb-2 max-h-28 w-auto object-cover" />
+                          <img src={msg.imagePreview} alt="Receipt" className="mb-2 max-h-28 w-auto rounded-lg object-cover" />
                         )}
-                        <span className="whitespace-pre-wrap">{msg.content}</span>
+                        <RichText text={msg.content} />
                       </div>
                     </div>
                   ))}
 
-                  {/* Processing indicator */}
-                  {(isProcessing || isOcring) && (
-                    <div className="flex items-end gap-1 justify-start">
-                      <PeacockAvatar className="w-5 h-5 mb-0.5" />
-                      <div className="bg-secondary rounded-2xl rounded-bl-sm px-3 py-2 text-sm text-muted-foreground flex items-center gap-2">
-                        <Loader2 size={12} className="animate-spin" />
-                        {isOcring ? `Scanning… ${ocrProgress}%` : 'Processing…'}
+                  {/* Typing / scanning indicator */}
+                  {busy && (
+                    <div className="flex items-end gap-2">
+                      <PeacockAvatar className="mb-0.5 h-6 w-6" />
+                      <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md bg-secondary px-3.5 py-3 text-sm text-muted-foreground">
+                        {isOcring ? (
+                          <span>Scanning receipt… {ocrProgress}%</span>
+                        ) : (
+                          <>
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" style={{ animationDelay: '0.2s' }} />
+                            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" style={{ animationDelay: '0.4s' }} />
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
 
-                  {/* Inline wallet picker */}
+                  {/* Wallet choice */}
                   {showWalletPicker && (
-                    <div className="bg-card border border-border rounded-xl p-3 space-y-2 mx-1">
-                      {pendingTransaction?.type === 'transfer' ? (
-                        <>
-                          <p className="text-xs font-medium text-foreground">From wallet:</p>
-                          <select
-                            value={selectedWalletId}
-                            onChange={e => setSelectedWalletId(e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs border border-border rounded-lg bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                          >
-                            <option value="">Choose source wallet…</option>
-                            {wallets.map((w: any) => (
-                              <option key={w._id ?? w.id} value={w._id ?? w.id}>{w.name}</option>
-                            ))}
-                          </select>
-                          <p className="text-xs font-medium text-foreground">To wallet:</p>
-                          <select
-                            value={selectedToWalletId}
-                            onChange={e => setSelectedToWalletId(e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs border border-border rounded-lg bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                          >
-                            <option value="">Choose destination wallet…</option>
+                    <div className="space-y-3 rounded-2xl border border-border bg-background p-3">
+                      <div>
+                        <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{isTransfer ? 'From' : 'Wallet'}</p>
+                        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {wallets.map((w: any) => {
+                            const id = w._id ?? w.id
+                            return (
+                              <button key={id} type="button" aria-pressed={selectedWalletId === id} onClick={() => setSelectedWalletId(id)} className={chipClass(selectedWalletId === id)}>
+                                {w.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                      {isTransfer && (
+                        <div>
+                          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">To</p>
+                          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                             {wallets
                               .filter((w: any) => (w._id ?? w.id) !== selectedWalletId)
-                              .map((w: any) => (
-                                <option key={w._id ?? w.id} value={w._id ?? w.id}>{w.name}</option>
-                              ))}
-                          </select>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-xs font-medium text-foreground">Select wallet:</p>
-                          <select
-                            value={selectedWalletId}
-                            onChange={e => setSelectedWalletId(e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs border border-border rounded-lg bg-input text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                          >
-                            <option value="">Choose a wallet…</option>
-                            {wallets.map((w: any) => (
-                              <option key={w._id ?? w.id} value={w._id ?? w.id}>{w.name}</option>
-                            ))}
-                          </select>
-                        </>
+                              .map((w: any) => {
+                                const id = w._id ?? w.id
+                                return (
+                                  <button key={id} type="button" aria-pressed={selectedToWalletId === id} onClick={() => setSelectedToWalletId(id)} className={chipClass(selectedToWalletId === id)}>
+                                    {w.name}
+                                  </button>
+                                )
+                              })}
+                          </div>
+                        </div>
                       )}
                       <button
                         onClick={handleOpenForm}
-                        disabled={
-                          !selectedWalletId ||
-                          (pendingTransaction?.type === 'transfer' && !selectedToWalletId)
-                        }
-                        className="w-full flex items-center justify-center gap-1.5 text-xs bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white py-2 rounded-lg font-medium transition-colors"
+                        disabled={!selectedWalletId || (isTransfer && !selectedToWalletId)}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-ios transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        <CheckCircle2 size={12} /> Review & Save
+                        <CheckCircle2 size={16} /> Review &amp; save
                       </button>
+                    </div>
+                  )}
+
+                  {/* Starter prompts */}
+                  {showSuggestions && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {SUGGESTIONS.map(text => (
+                        <button key={text} type="button" onClick={() => setInputText(text)} className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5">
+                          {text}
+                        </button>
+                      ))}
                     </div>
                   )}
 
@@ -501,39 +562,36 @@ export function FloatingAgent() {
                 </div>
 
                 {/* Input bar */}
-                <div className="border-t border-border p-2 shrink-0 flex items-center gap-1.5">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
+                <div className="flex shrink-0 items-center gap-2 border-t border-border p-3">
+                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isProcessing || isOcring}
+                    disabled={busy}
+                    aria-label="Upload a receipt photo"
                     title="Upload receipt"
-                    className="p-2 text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors disabled:opacity-40"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground transition-colors hover:text-primary disabled:opacity-40"
                   >
-                    <Camera size={16} />
+                    <Camera size={18} />
                   </button>
                   <input
                     type="text"
-                    placeholder='e.g. "Spent 50 on coffee"'
+                    placeholder="Spent 50 on coffee…"
+                    aria-label="Tell Fico about a transaction"
                     value={inputText}
                     onChange={e => setInputText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendText()}
-                    disabled={isProcessing || isOcring}
-                    className="flex-1 text-xs px-3 py-2 border border-border rounded-xl bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40"
+                    disabled={busy}
+                    className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-40"
                   />
                   <button
                     type="button"
                     onClick={handleSendText}
-                    disabled={!inputText.trim() || isProcessing || isOcring}
-                    className="p-2 bg-blue-500 hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                    disabled={!inputText.trim() || busy}
+                    aria-label="Send"
+                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-ios transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <Send size={14} />
+                    <Send size={16} />
                   </button>
                 </div>
 
@@ -543,20 +601,20 @@ export function FloatingAgent() {
           </div>
         </div>
 
-        {/* ── Collapsed Button ── */}
+        {/* ── Launcher ── */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 relative ${
+          aria-label={isOpen ? 'Close Fico' : 'Open Fico'}
+          aria-expanded={isOpen}
+          className={`relative flex h-16 w-16 items-center justify-center rounded-full bg-card shadow-ios-lg ring-2 ring-primary/40 transition-all duration-300 hover:ring-primary ${
             isOpen ? 'scale-95' : 'scale-100'
           }`}
         >
-          {!isOpen ? (
+          {isOpen ? <X size={24} className="text-primary" /> : (
             <>
-              <PeacockAvatar className="w-14 h-14" label="Fico, your financial advisor" />
-              <div className="absolute top-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full" />
+              <PeacockAvatar className="h-14 w-14" label="Fico, your financial advisor" />
+              <span className="absolute right-0 top-0 h-4 w-4 rounded-full border-2 border-card bg-success" />
             </>
-          ) : (
-            <MessageCircle size={24} className="text-white" />
           )}
         </button>
 
