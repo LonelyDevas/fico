@@ -231,6 +231,7 @@ export function WalletsPage() {
           <div className="mt-5">
             <MoneyOverviewCard
               note={note}
+              loading={isLoading}
               netWorth={money(assets - owed)}
               assets={money(assets)}
               owed={money(owed)}

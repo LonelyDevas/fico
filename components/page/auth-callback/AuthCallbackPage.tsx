@@ -1,17 +1,18 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useHistory, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { jwtDecode } from 'jwt-decode'
 import { useAuthStore, useIsAuthenticated, useAuthLoading } from '@/store/auth-store'
 import { useSettingsStore } from '@/store/settings-store'
 import type { AccessToken } from '@/types/auth'
 import { isOnboardingDone } from '@/utils/onboarding'
+import { useRootNavigate } from '@/utils/use-root-navigate'
 
 const isSupabase = () => process.env.NEXT_PUBLIC_BACKEND === 'supabase'
 
 export function AuthCallbackPage() {
-  const history = useHistory()
+  const rootNavigate = useRootNavigate()
   const location = useLocation()
   const { setAuth } = useAuthStore()
   const { onboardingCompleted, defaultLandingPage } = useSettingsStore()
@@ -25,13 +26,13 @@ export function AuthCallbackPage() {
     if (!isSupabase()) return
     if (isAuthLoading) return
     if (!isAuthenticated) {
-      history.replace('/signin')
+      rootNavigate('/signin')
       return
     }
     // Onboarding is remembered on the account, so ask it instead of trusting this browser alone.
     let cancelled = false
     void isOnboardingDone().then((done) => {
-      if (!cancelled) history.replace(done ? defaultLandingPage : '/onboarding')
+      if (!cancelled) rootNavigate(done ? defaultLandingPage : '/onboarding')
     })
     return () => {
       cancelled = true
@@ -49,7 +50,7 @@ export function AuthCallbackPage() {
     const email    = params.get('email')    ?? ''
 
     if (!token) {
-      history.replace('/signin')
+      rootNavigate('/signin')
       return
     }
 
@@ -70,9 +71,9 @@ export function AuthCallbackPage() {
 
       localStorage.setItem('auth', token)
       setAuth(authData)
-      history.replace(onboardingCompleted ? defaultLandingPage : '/onboarding')
+      rootNavigate(onboardingCompleted ? defaultLandingPage : '/onboarding')
     } catch {
-      history.replace('/signin')
+      rootNavigate('/signin')
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

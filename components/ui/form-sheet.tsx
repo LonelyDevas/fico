@@ -8,12 +8,14 @@ import { useSettingsStore } from '@/store/settings-store'
 /** Shared look for the app's bottom-sheet / side-panel forms (same as the wallet and quick-add sheets). */
 export const labelClass = 'mb-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground'
 export const fieldClass =
-  'w-full rounded-2xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary'
+  'block min-h-11 w-full min-w-0 max-w-full appearance-none rounded-2xl border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary'
 export const chipClass = (selected: boolean) =>
   `shrink-0 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
     selected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-foreground hover:border-primary/50'
   }`
-export const scrollRowClass = 'flex gap-2 overflow-x-auto px-1 pb-1 -mx-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+export const scrollRowClass = 'flex min-w-0 gap-2 overflow-x-auto px-1 pb-1 -mx-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+/** Chip row that scrolls to the sheet's edge instead of stopping at its padding (the sheet body has px-5). */
+export const scrollBleedClass = 'flex gap-2 overflow-x-auto px-5 pb-1 -mx-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
 export const currencySymbol = (currency: string) => {
   try {
@@ -44,7 +46,7 @@ export function FormSheet({ open, onClose, title, description, submitLabel, onSu
           <div className="flex items-center justify-between px-5 pb-2 pt-1">
             <SheetTitle className="font-heading text-lg font-semibold text-foreground">{title}</SheetTitle>
             <SheetDescription className="sr-only">{description}</SheetDescription>
-            <button type="button" onClick={onClose} aria-label="Close" className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
+            <button type="button" onClick={onClose} aria-label="Close" className="max-md:hidden rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -101,7 +103,7 @@ export function MoneyField({
 /** Small labelled block: label on top, control below. */
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className={labelClass}>{label}</p>
       {children}
       {hint && <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>}

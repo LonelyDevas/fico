@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 512 512" width="1024" height="1024">
+  <defs>
+    <clipPath id="icon"><rect width="512" height="512" rx="116"/></clipPath>
+
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2EF0E2"/>
+      <stop offset=".55" stop-color="#05C4BA"/>
+      <stop offset="1" stop-color="#008F9A"/>
+    </linearGradient>
+    <radialGradient id="bgGlow" cx=".3" cy=".08" r=".75">
+      <stop offset="0" stop-color="#fff" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="feather" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0E8F98"/>
+      <stop offset="1" stop-color="#075E86"/>
+    </linearGradient>
+    <linearGradient id="featherEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5FE8C9"/>
+      <stop offset="1" stop-color="#1AA3A8"/>
+    </linearGradient>
+    <radialGradient id="eyespot" cx=".4" cy=".35" r=".8">
+      <stop offset="0" stop-color="#3DE0FF"/>
+      <stop offset=".6" stop-color="#0A86E0"/>
+      <stop offset="1" stop-color="#064FB0"/>
+    </radialGradient>
+
+    <radialGradient id="head" cx=".32" cy=".18" r=".95">
+      <stop offset="0" stop-color="#58B0FF"/>
+      <stop offset=".45" stop-color="#1676E6"/>
+      <stop offset="1" stop-color="#0A47B0"/>
+    </radialGradient>
+    <radialGradient id="eye" cx=".5" cy=".35" r=".75">
+      <stop offset="0" stop-color="#fff"/>
+      <stop offset=".75" stop-color="#F3F7FF"/>
+      <stop offset="1" stop-color="#C6D6F2"/>
+    </radialGradient>
+    <linearGradient id="beak" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD66B"/>
+      <stop offset="1" stop-color="#F28A18"/>
+    </linearGradient>
+    <linearGradient id="coin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE98A"/>
+      <stop offset=".5" stop-color="#FFC531"/>
+      <stop offset="1" stop-color="#E08A00"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#fff" stop-opacity=".4"/>
+    </linearGradient>
+
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="soft2" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter>
+
+    <!-- one tail feather pointing up from (0,0); eye-spot near the tip -->
+    <g id="plume">
+      <path d="M0 0C-46 -70 -62 -200 0 -310C62 -200 46 -70 0 0Z" fill="url(#feather)"/>
+      <path d="M0 -20C-30 -90 -40 -200 0 -296C40 -200 30 -90 0 -20Z" fill="none" stroke="url(#featherEdge)" stroke-width="3" opacity=".6"/>
+      <path d="M0 0V-250" stroke="#7FF2D6" stroke-width="2" opacity=".5"/>
+      <ellipse cx="0" cy="-236" rx="34" ry="43" fill="#0A5E96"/>
+      <ellipse cx="0" cy="-236" rx="27" ry="35" fill="url(#eyespot)"/>
+      <ellipse cx="0" cy="-232" rx="14" ry="18" fill="#22D3A0"/>
+      <ellipse cx="-4" cy="-240" rx="5" ry="7" fill="#fff" opacity=".8"/>
+    </g>
+  <radialGradient id="black" cx=".4" cy=".3" r=".9"><stop offset="0" stop-color="#3A4A66"/><stop offset=".5" stop-color="#141B28"/><stop offset="1" stop-color="#05080F"/></radialGradient></defs>
+
+  <g clip-path="url(#icon)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+    <rect width="512" height="512" fill="url(#bgGlow)"/>
+
+    <!-- tail fan -->
+    <g transform="translate(256 452)">
+      <use xlink:href="#plume" transform="rotate(-84) scale(.8)"/>
+      <use xlink:href="#plume" transform="rotate(84) scale(.8)"/>
+      <use xlink:href="#plume" transform="rotate(-66) scale(.98)"/>
+      <use xlink:href="#plume" transform="rotate(66) scale(.98)"/>
+      <use xlink:href="#plume" transform="rotate(-48) scale(1.1)"/>
+      <use xlink:href="#plume" transform="rotate(48) scale(1.1)"/>
+      <use xlink:href="#plume" transform="rotate(-30) scale(1.18)"/>
+      <use xlink:href="#plume" transform="rotate(30) scale(1.18)"/>
+      <use xlink:href="#plume" transform="rotate(-12) scale(1.22)"/>
+      <use xlink:href="#plume" transform="rotate(12) scale(1.22)"/>
+    </g>
+
+    <!-- shadow of the head on the fan -->
+    <ellipse cx="256" cy="440" rx="200" ry="170" fill="#042B5E" opacity=".45" filter="url(#soft)"/>
+
+    <!-- head -->
+    <circle cx="256" cy="476" r="192" fill="url(#head)"/>
+    <path d="M92 400C120 330 190 290 256 290" fill="none" stroke="#9AD3FF" stroke-width="7" stroke-linecap="round" opacity=".45"/>
+
+    <!-- crest -->
+    <g stroke="#0E5ACB" stroke-width="13" stroke-linecap="round" fill="none">
+      <path d="M256 296V238"/><path d="M226 300C214 276 206 258 198 242"/><path d="M286 300C298 276 306 258 314 242"/>
+    </g>
+    <g>
+      <ellipse cx="256" cy="222" rx="19" ry="24" fill="#0A5E96"/><ellipse cx="256" cy="222" rx="14" ry="18" fill="url(#eyespot)"/><ellipse cx="256" cy="224" rx="6" ry="8" fill="#22D3A0"/>
+      <ellipse cx="193" cy="230" rx="16" ry="20" transform="rotate(-18 193 230)" fill="#0A5E96"/><ellipse cx="193" cy="230" rx="11" ry="15" transform="rotate(-18 193 230)" fill="url(#eyespot)"/><ellipse cx="193" cy="232" rx="5" ry="6" fill="#22D3A0"/>
+      <ellipse cx="319" cy="230" rx="16" ry="20" transform="rotate(18 319 230)" fill="#0A5E96"/><ellipse cx="319" cy="230" rx="11" ry="15" transform="rotate(18 319 230)" fill="url(#eyespot)"/><ellipse cx="319" cy="232" rx="5" ry="6" fill="#22D3A0"/>
+    </g>
+
+    <!-- eyes --><ellipse cx="190" cy="380" rx="54" ry="66" fill="#fff"/><ellipse cx="322" cy="380" rx="54" ry="66" fill="#fff"/>
+<ellipse cx="200" cy="376" rx="31" ry="43" fill="#3B3F4A"/><ellipse cx="332" cy="376" rx="31" ry="43" fill="#3B3F4A"/>
+<circle cx="214" cy="354" r="15" fill="#fff"/><circle cx="346" cy="354" r="15" fill="#fff"/>
+<g stroke="#0B2A66" stroke-width="14" stroke-linecap="round" fill="none"><path d="M136 318L238 346"/><path d="M376 318L274 346"/></g>
+
+    <!-- beak -->
+    <path d="M228 446C236 440 276 440 284 446C288 458 270 484 256 488C242 484 224 458 228 446Z" fill="url(#beak)"/>
+    <path d="M238 449C246 446 266 446 274 449" stroke="#FFF3BF" stroke-width="5" stroke-linecap="round" fill="none" opacity=".85"/>
+
+    <!-- coin -->
+    <g transform="translate(404 458) rotate(14)">
+      <circle r="46" fill="#7A3E00" opacity=".35" transform="translate(4 8)" filter="url(#soft2)"/>
+      <circle r="46" fill="url(#coin)"/>
+      <circle r="35" fill="none" stroke="#C97A00" stroke-width="4" opacity=".7"/>
+      <path d="M8 -20C-14 -26 -20 -4 -2 0C16 4 12 26 -10 20" fill="none" stroke="#B86A00" stroke-width="7" stroke-linecap="round"/>
+      <path d="M-1 -26V-20M-1 20V27" stroke="#B86A00" stroke-width="7" stroke-linecap="round"/>
+      <path d="M-28 -22C-18 -36 -2 -42 14 -40" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".7"/>
+    </g>
+
+    <!-- glassy top highlight + inner rim -->
+    <path d="M0 0H512V150C380 200 130 200 0 150Z" fill="#fff" opacity=".08"/>
+    <rect x="3" y="3" width="506" height="506" rx="113" fill="none" stroke="url(#rim)" stroke-width="6"/>
+  </g>
+</svg>

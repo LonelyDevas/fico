@@ -10,7 +10,7 @@ import { useOAuthLogin, useRegisterUser } from '@/queries/auth/auth'
 import { GoogleButton } from '@/components/page/auth/google-button'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import toast from 'react-hot-toast'
+import { celebrate } from '@/store/celebration-store'
 
 const STEPS = ['Account', 'Personal', 'Address', 'Review']
 
@@ -92,7 +92,7 @@ export function SignupForm() {
   const onSubmit = async (data: RegisterFormData) => {
     await registerUser(data, {
       onSuccess: () => {
-        toast.success('Account created! Welcome to Fico.')
+        celebrate({ kind: 'confetti', title: 'Welcome to Fico!', message: 'Your account is ready. Sign in and I will help you set everything up.', actionLabel: 'Let us go' })
         reset()
         setCurrentStep(1)
         setPasswordStrength(0)
@@ -130,13 +130,13 @@ export function SignupForm() {
     <div className="w-full max-w-sm mx-auto">
       {/* Logo & heading */}
       <div className="flex flex-col items-center mb-7">
-        <div className="w-[72px] h-[72px] rounded-[20px] overflow-hidden mb-5 shadow-sm bg-white dark:bg-zinc-800 flex items-center justify-center">
+        <div className="w-[72px] h-[72px] rounded-[20px] overflow-hidden mb-5 shadow-md flex items-center justify-center">
           <Image
-            src="/FicoLogoTrans1.png"
+            src="/icon-512.png"
             alt="Fico"
-            width={60}
-            height={60}
-            className="w-[60px] h-[60px] object-contain"
+            width={72}
+            height={72}
+            className="w-[72px] h-[72px] object-cover"
           />
         </div>
         <h1 className="text-[28px] font-bold text-gray-900 dark:text-white leading-tight">

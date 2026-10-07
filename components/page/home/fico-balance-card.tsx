@@ -2,6 +2,7 @@
 
 import { ArrowDownLeft, ArrowUpRight, Eye, EyeOff, Sparkles } from 'lucide-react'
 import { PeacockMascot } from '@/components/peacock-mascot'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export type Period = 'today' | 'week' | 'month'
 
@@ -18,6 +19,8 @@ interface FicoBalanceCardProps {
   income: string
   expenses: string
   statsLoading?: boolean
+  balanceLoading?: boolean
+  noteLoading?: boolean
   period: Period
   onPeriodChange: (period: Period) => void
   showAmounts: boolean
@@ -53,6 +56,8 @@ export function FicoBalanceCard({
   income,
   expenses,
   statsLoading,
+  balanceLoading,
+  noteLoading,
   period,
   onPeriodChange,
   showAmounts,
@@ -67,7 +72,14 @@ export function FicoBalanceCard({
             <Sparkles className="h-3.5 w-3.5" />
             Fico is thinking
           </p>
-          <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+          {noteLoading ? (
+            <div className="mt-2 space-y-2" aria-label="Loading">
+              <Skeleton className="h-3.5 w-full" />
+              <Skeleton className="h-3.5 w-3/4" />
+            </div>
+          ) : (
+            <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+          )}
           {/* Thought trail leading to the peacock */}
           <span aria-hidden="true" className="absolute -right-3.5 bottom-6 h-3.5 w-3.5 rounded-full border border-border bg-card shadow-sm sm:bottom-8" />
           <span aria-hidden="true" className="absolute -right-[1.65rem] bottom-4 h-2 w-2 rounded-full border border-border bg-card shadow-sm sm:bottom-6" />
@@ -94,7 +106,11 @@ export function FicoBalanceCard({
               {showAmounts ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{balance}</p>
+          {balanceLoading ? (
+            <Skeleton className="mt-2 h-10 w-52 bg-white/20 sm:h-12" />
+          ) : (
+            <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{balance}</p>
+          )}
 
           <div role="group" aria-label="Time range" className="mt-4 inline-flex rounded-full bg-white/15 p-1 text-xs font-semibold">
             {PERIODS.map((option) => (
@@ -118,14 +134,14 @@ export function FicoBalanceCard({
                 <ArrowDownLeft className="h-3.5 w-3.5 text-[#2ECC71]" />
                 Money in
               </p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">{statsLoading ? '…' : income}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">{statsLoading ? <Skeleton className="h-6 w-24 bg-white/20" /> : income}</p>
             </div>
             <div className="rounded-2xl bg-white/12 p-3">
               <p className="flex items-center gap-1.5 text-xs font-medium text-white/75">
                 <ArrowUpRight className="h-3.5 w-3.5 text-[#FFB08F]" />
                 Money out
               </p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">{statsLoading ? '…' : expenses}</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">{statsLoading ? <Skeleton className="h-6 w-24 bg-white/20" /> : expenses}</p>
             </div>
           </div>
         </div>

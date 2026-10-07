@@ -174,7 +174,7 @@ export default function BudgetModal({ open, onClose, budget }: { open: boolean; 
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              className="max-md:hidden rounded-full p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
             >
               <span className="sr-only">Close</span>
               X

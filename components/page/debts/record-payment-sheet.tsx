@@ -7,6 +7,7 @@ import { Field, FormSheet, fieldClass, MoneyField } from '@/components/ui/form-s
 import { useRecordObligationPayment } from '@/queries/user/obligation/obligations'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { celebrate } from '@/store/celebration-store'
 import type { Obligation } from '@/types/obligation'
 
 interface RecordPaymentSheetProps {
@@ -49,7 +50,19 @@ export function RecordPaymentSheet({ obligation, onClose }: RecordPaymentSheetPr
       },
       {
         onSuccess: () => {
-          toast.success(isDebt ? 'Payment recorded' : 'Repayment recorded')
+          // Paying off the last of it is a moment worth marking; part payments stay a quiet toast.
+          if (amountNum >= obligation.remainingBalance - 0.005) {
+            celebrate({
+              kind: isDebt ? 'confetti' : 'coins',
+              title: isDebt ? 'Debt cleared!' : 'Paid back in full!',
+              message: isDebt
+                ? `${obligation.name} is fully paid off. One less thing to worry about.`
+                : `${obligation.counterparty} has paid you back for ${obligation.name}.`,
+              highlight: formatMoney(amountNum, obligation.currency || currency, false),
+            })
+          } else {
+            toast.success(isDebt ? 'Payment recorded' : 'Repayment recorded')
+          }
           onClose()
         },
       }
@@ -73,7 +86,7 @@ export function RecordPaymentSheet({ obligation, onClose }: RecordPaymentSheetPr
         <MoneyField value={amount} onChange={setAmount} ariaLabel="Amount" />
       </Field>
       <Field label={isDebt ? 'Paid from' : 'Received into'}>
-        <WalletPicker value={walletId} onChange={setWalletId} />
+        <WalletPicker value={walletId} onChange={setWalletId} payFrom={isDebt} />
       </Field>
       <Field label="Date">
         <input type="date" value={date} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setDate(e.target.value)} aria-label="Date" className={fieldClass} />

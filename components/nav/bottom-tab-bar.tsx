@@ -1,6 +1,5 @@
 'use client'
 
-import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -43,13 +42,9 @@ export function BottomTabBar({ onAdd }: BottomTabBarProps) {
   const { pathname } = useLocation()
   const [first, second, third, fourth] = NAV_ITEMS
 
-  // Rendered in <body>, outside Ionic's app container. iOS makes that container shorter than
-  // the visible screen, which left the bar floating about 60pt above the bottom.
-  if (typeof document === 'undefined') return null
-
-  return createPortal(
+  return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-border bg-card pb-2 shadow-ios-lg lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 rounded-t-3xl border-t border-border bg-card pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-ios-lg lg:hidden"
       aria-label="Primary"
     >
       <div className="mx-auto flex h-16 max-w-md items-stretch px-2">
@@ -60,7 +55,7 @@ export function BottomTabBar({ onAdd }: BottomTabBarProps) {
             type="button"
             onClick={onAdd}
             aria-label="Add transaction"
-            className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-ios-lg ring-4 ring-background transition-transform active:scale-95"
+            className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-ios-lg transition-transform active:scale-95"
           >
             <Plus className="h-6 w-6" strokeWidth={2.5} />
           </button>
@@ -68,7 +63,6 @@ export function BottomTabBar({ onAdd }: BottomTabBarProps) {
         <Tab item={third} pathname={pathname} />
         <Tab item={fourth} pathname={pathname} />
       </div>
-    </nav>,
-    document.body
+    </nav>
   )
 }

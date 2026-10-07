@@ -3,10 +3,11 @@
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { Eye, EyeOff, X } from 'lucide-react'
-import { useHistory, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { usePassportLogin, useOAuthLogin } from '@/queries/auth/auth'
 import { GoogleButton } from '@/components/page/auth/google-button'
 import { isOnboardingDone } from '@/utils/onboarding'
+import { useRootNavigate } from '@/utils/use-root-navigate'
 import toast from 'react-hot-toast'
 import { jwtDecode } from 'jwt-decode'
 import { AccessToken } from '@/types/auth'
@@ -23,7 +24,7 @@ export function SigninForm() {
   const { mutate: oauthLogin } = useOAuthLogin()
   const { setAuth } = useAuthStore()
   const { defaultLandingPage } = useSettingsStore()
-  const history = useHistory()
+  const rootNavigate = useRootNavigate()
   const isAuthenticated = useIsAuthenticated()
   const isAuthLoading = useAuthLoading()
 
@@ -32,7 +33,7 @@ export function SigninForm() {
     if (isAuthLoading || !isAuthenticated) return
     let cancelled = false
     void isOnboardingDone().then((done) => {
-      if (!cancelled) history.replace(done ? defaultLandingPage : '/onboarding')
+      if (!cancelled) rootNavigate(done ? defaultLandingPage : '/onboarding')
     })
     return () => {
       cancelled = true
@@ -58,7 +59,7 @@ export function SigninForm() {
           setAuth(token)
         }
         toast.success('Logged in successfully!')
-        void isOnboardingDone().then((done) => history.push(done ? defaultLandingPage : '/onboarding'))
+        void isOnboardingDone().then((done) => rootNavigate(done ? defaultLandingPage : '/onboarding'))
       },
     })
   }
@@ -81,13 +82,13 @@ export function SigninForm() {
     <div className="w-full max-w-sm mx-auto">
       {/* Logo & heading */}
       <div className="flex flex-col items-center mb-8">
-        <div className="w-[72px] h-[72px] rounded-[20px] overflow-hidden mb-5 shadow-sm bg-white dark:bg-zinc-800 flex items-center justify-center">
+        <div className="w-[72px] h-[72px] rounded-[20px] overflow-hidden mb-5 shadow-md flex items-center justify-center">
           <Image
-            src="/FicoLogoTrans1.png"
+            src="/icon-512.png"
             alt="Fico"
-            width={60}
-            height={60}
-            className="w-[60px] h-[60px] object-contain"
+            width={72}
+            height={72}
+            className="w-[72px] h-[72px] object-cover"
           />
         </div>
         <h1 className="text-[28px] font-bold text-gray-900 dark:text-white leading-tight">Log in or sign up</h1>

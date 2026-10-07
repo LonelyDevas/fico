@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect } from 'react';
+import { installViewportFix } from '@/utils/viewport-fix';
 import { IonApp, IonContent, IonPage, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import { Route, Redirect, useLocation } from 'react-router-dom';
@@ -42,7 +44,8 @@ function withAuth<P extends object>(Page: React.ComponentType<P>) {
         </IonPage>
       );
     }
-    if (!isAuthenticated) return <Redirect to="/signin" />;
+    // Keep the IonPage wrapper: a bare Redirect leaves Ionic with a view that has no page, i.e. a white screen.
+    if (!isAuthenticated) return <IonPage><Redirect to="/signin" /></IonPage>;
     return <Page {...props} />;
   };
 }
@@ -72,12 +75,18 @@ function AppShellInner() {
   const isAuthLoading = useAuthLoading();
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+    <div className={`h-full flex flex-col bg-background text-foreground${!hideNav ? ' has-bottom-nav' : ''}`}>
       {!hideNav && <Navbar />}
       <div
-        className={`flex-1 relative${!hideNav ? ' pb-(--bottom-nav-h) lg:pb-0' : ''}`}
+        className="flex-1 relative"
       >
-        <IonRouterOutlet id="main-content" style={{ height: '100%', position: 'relative', display: 'block' }}>
+        {/* Keyed on the sign-in state: signing in or out rebuilds Ionic's page stack, so a page from the
+            previous session can never stay mounted (and visible) behind the new one. */}
+        <IonRouterOutlet
+          key={isAuthLoading ? 'loading' : isAuthenticated ? 'signed-in' : 'signed-out'}
+          id="main-content"
+          style={{ height: '100%', position: 'relative', display: 'block' }}
+        >
           <Route exact path="/signin" component={SignInPage} />
           <Route exact path="/signup" component={SignUpPage} />
           <Route exact path="/onboarding" component={GuardedOnboarding} />
@@ -105,6 +114,7 @@ function AppShellInner() {
 }
 
 export default function AppShell() {
+  useEffect(() => installViewportFix(), []);
   return (
     <Providers>
       <IonApp>

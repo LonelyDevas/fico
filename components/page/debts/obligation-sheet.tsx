@@ -200,7 +200,7 @@ export function ObligationSheet({ open, onClose, obligation, initialDirection = 
           </Field>
 
           <Field label={isDebt ? 'Money went into' : 'Money came from'} hint="Optional. Pick a wallet to record the money moving, or leave it off to just track the debt.">
-            <WalletPicker value={walletId} onChange={setWalletId} noneLabel="Don't record" />
+            <WalletPicker value={walletId} onChange={setWalletId} noneLabel="Don't record" payFrom={!isDebt} />
           </Field>
 
           <div>

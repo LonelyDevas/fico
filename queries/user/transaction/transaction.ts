@@ -16,8 +16,13 @@ import {
   transactionsSummaryParams,
   quickStatsTransactionParams,
 } from "@/types/transaction";
+import { buildCategoryBreakdown, buildChartData, buildQuickStats, fetchRangeRows, isShiftablePeriod } from "./period-range";
 
 const isSupabase = () => process.env.NEXT_PUBLIC_BACKEND === 'supabase';
+
+// True when a report is for a past period (offset < 0), which the reports_* RPCs can't do.
+const isPastPeriod = (params?: quickStatsTransactionParams) =>
+  isSupabase() && !!params?.offset && params.offset < 0 && isShiftablePeriod(params.period);
 
 // Shared by any mutation that can move a wallet balance (create/update/delete
 // transaction) — without this, wallet balances and dashboard stats stay
@@ -283,6 +288,10 @@ export const useTransactionsSummary = (params?: transactionsSummaryParams) => {
 };
 
 const getQuickStats = async (params: quickStatsTransactionParams) => {
+  if (isPastPeriod(params)) {
+    const rows = await fetchRangeRows(params.period as any, params.offset!, params.walletId);
+    return { message: 'success', data: buildQuickStats(rows, params.period as any, params.offset!) };
+  }
   if (isSupabase()) {
     const { data, error } = await supabase.rpc('reports_quick_stats', {
       p_period: params.period,
@@ -322,6 +331,10 @@ export const useTransactionTags = () => {
 };
 
 const getChartData = async (params?: quickStatsTransactionParams) => {
+  if (params && isPastPeriod(params)) {
+    const rows = await fetchRangeRows(params.period as any, params.offset!, params.walletId);
+    return { message: 'success', data: buildChartData(rows, params.period as any, params.offset!) };
+  }
   if (isSupabase()) {
     const { data, error } = await supabase.rpc('reports_chart_data', {
       p_period: params?.period ?? 'month',
@@ -343,6 +356,10 @@ export const useTransactionChartData = (params?: quickStatsTransactionParams) =>
 };
 
 export const getTopCategories = async (params?: quickStatsTransactionParams) => {
+  if (params && isPastPeriod(params)) {
+    const rows = await fetchRangeRows(params.period as any, params.offset!, params.walletId);
+    return { message: 'success', data: buildCategoryBreakdown(rows, params.type ?? 'expense') };
+  }
   if (isSupabase()) {
     const { data, error } = await supabase.rpc('reports_category_breakdown', {
       p_type: params?.type ?? 'expense',

@@ -65,7 +65,7 @@ const listBills = async (params: ListBillsParams) => {
     const limit = parseInt(params.limit ?? '20') || 20;
     let query = supabase
       .from('bills')
-      .select('*, category:categories(name,type,icon,color), wallet:wallets(name,type)', { count: 'exact' })
+      .select('*, category:categories(name,type,icon,color), wallet:wallets!bills_wallet_id_fkey(name,type)', { count: 'exact' })
       .eq('status', params.status ?? 'active');
     if (params.type) query = query.eq('type', params.type);
     if (params.paymentStatus) query = query.eq('payment_status', params.paymentStatus);
@@ -251,7 +251,7 @@ const getUpcomingBills = async (params: UpcomingBillsParams) => {
 
     const { data, error } = await supabase
       .from('bills')
-      .select('*, category:categories(name,type,icon,color), wallet:wallets(name,type)')
+      .select('*, category:categories(name,type,icon,color), wallet:wallets!bills_wallet_id_fkey(name,type)')
       .eq('status', 'active')
       .in('payment_status', ['unpaid', 'partial'])
       .gte('due_date', today.toISOString())

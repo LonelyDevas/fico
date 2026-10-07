@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { WalletPicker } from '@/components/page/wallet/wallet-picker'
 import { INVESTMENT_TYPES, PLATFORM_SUGGESTIONS } from '@/components/page/investments/investment-meta'
-import { chipClass, Field, FormSheet, fieldClass, MoneyField, scrollRowClass } from '@/components/ui/form-sheet'
+import { chipClass, Field, FormSheet, fieldClass, MoneyField, scrollBleedClass, scrollRowClass } from '@/components/ui/form-sheet'
 import { useCreateInvestment, useUpdateInvestment } from '@/queries/user/investment/investments'
 import { useSettingsStore } from '@/store/settings-store'
+import { formatMoney } from '@/utils/formatter'
+import { celebrate } from '@/store/celebration-store'
 import type { Investment, InvestmentType } from '@/types/investment'
 
 interface InvestmentSheetProps {
@@ -48,8 +50,9 @@ export function InvestmentSheet({ open, onClose, investment }: InvestmentSheetPr
     setNotes(investment?.notes ?? '')
   }, [open, investment])
 
-  const finish = (message: string) => {
-    toast.success(message)
+  const finish = (message: string, celebration?: Parameters<typeof celebrate>[0]) => {
+    if (celebration) celebrate(celebration)
+    else toast.success(message)
     onClose()
   }
 
@@ -87,7 +90,15 @@ export function InvestmentSheet({ open, onClose, investment }: InvestmentSheetPr
         expectedReturnRate: Number(rate) > 0 ? Number(rate) : undefined,
         notes: notes.trim() || undefined,
       },
-      { onSuccess: () => finish('Investment added') }
+      {
+        onSuccess: () =>
+          finish('Investment added', {
+            kind: 'coins',
+            title: 'Investment added',
+            message: `${name.trim()} is now part of your portfolio.`,
+            highlight: formatMoney(principal, currency, false),
+          }),
+      }
     )
   }
 
@@ -126,7 +137,7 @@ export function InvestmentSheet({ open, onClose, investment }: InvestmentSheetPr
 
       <Field label="Where (optional)">
         <input value={platform} onChange={(e) => setPlatform(e.target.value)} placeholder="Broker, bank or app" aria-label="Platform" className={fieldClass} />
-        <div className={`${scrollRowClass} mt-2`}>
+        <div className={`${scrollBleedClass} mt-2`}>
           {PLATFORM_SUGGESTIONS.map((p) => (
             <button key={p} type="button" onClick={() => setPlatform(p)} className={chipClass(platform === p)}>
               {p}
@@ -162,7 +173,7 @@ export function InvestmentSheet({ open, onClose, investment }: InvestmentSheetPr
 
       {!isEdit && (
         <Field label="Paid from" hint="Optional. Pick a wallet and the amount comes out of it as an expense.">
-          <WalletPicker value={walletId} onChange={setWalletId} noneLabel="Don't record" />
+          <WalletPicker value={walletId} onChange={setWalletId} noneLabel="Don't record" payFrom />
         </Field>
       )}
 

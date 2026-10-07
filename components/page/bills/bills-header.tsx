@@ -1,13 +1,11 @@
 import { Button } from '@/components/ui/button'
-import { Plus, RefreshCw } from 'lucide-react'
+import { Plus } from 'lucide-react'
 
 interface BillsHeaderProps {
-  isRefreshing?: boolean
-  onRefresh: () => void
   onCreate: () => void
 }
 
-export function BillsHeader({ isRefreshing, onRefresh, onCreate }: BillsHeaderProps) {
+export function BillsHeader({ onCreate }: BillsHeaderProps) {
   return (
     <div className="bg-gradient-to-r from-primary/5 via-accent/5 to-success/5 border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
@@ -18,10 +16,6 @@ export function BillsHeader({ isRefreshing, onRefresh, onCreate }: BillsHeaderPr
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <Button variant="outline" className="gap-2 rounded-full" onClick={onRefresh} disabled={isRefreshing}>
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
             <Button className="gap-2 rounded-full" onClick={onCreate}>
               <Plus className="w-4 h-4" />
               New Entry

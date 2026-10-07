@@ -12,7 +12,7 @@ export default function CategoriesPage() {
   const [searchQuery, setSearchQuery] = useState('')
   
   const { data: categoryResponse } = useListCategories()
-  const { data: summaryResponse } = useCategorySummary()
+  const { data: summaryResponse, isLoading: summaryLoading } = useCategorySummary()
   const { currency } = useSettingsStore()
 
   const categoriesCount = useMemo(() => {
@@ -51,6 +51,7 @@ export default function CategoriesPage() {
             monthlyBudget={summary.totalBudget}
             budgetAlerts={summary.budgetAlerts}
             currency={summary.currency}
+            isLoading={summaryLoading}
           />
 
           <CategoryList />

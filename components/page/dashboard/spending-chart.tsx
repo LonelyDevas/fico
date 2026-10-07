@@ -15,12 +15,15 @@ import {
 import { useTransactionChartData } from '@/queries/user/transaction/transaction'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { describePeriod } from '@/queries/user/transaction/period-range'
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'all'
 
 interface ChartProps {
   period: PeriodType
   walletId?: string
+  /** Steps back from the current period (0 or negative). */
+  offset?: number
 }
 
 function CustomTooltip({ active, payload, label }: TooltipProps<number, string>) {
@@ -40,8 +43,8 @@ function CustomTooltip({ active, payload, label }: TooltipProps<number, string>)
   )
 }
 
-export function SpendingChart({ period, walletId }: ChartProps) {
-  const { data: chartDataResponse, isLoading } = useTransactionChartData({ period, walletId })
+export function SpendingChart({ period, walletId, offset = 0 }: ChartProps) {
+  const { data: chartDataResponse, isLoading } = useTransactionChartData({ period, walletId, offset })
   const { currency } = useSettingsStore()
 
   const { chartData } = useMemo(() => {
@@ -66,7 +69,7 @@ export function SpendingChart({ period, walletId }: ChartProps) {
         <div>
           <h3 className="font-semibold text-foreground">Spending Overview</h3>
           <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-            {period === 'all' ? 'All time' : `This ${period}`}
+            {describePeriod(period, offset)}
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs">
@@ -139,8 +142,8 @@ export function SpendingChart({ period, walletId }: ChartProps) {
   )
 }
 
-export function PeriodSummaryCard({ period, walletId }: ChartProps) {
-  const { data: chartDataResponse, isLoading } = useTransactionChartData({ period, walletId })
+export function PeriodSummaryCard({ period, walletId, offset = 0 }: ChartProps) {
+  const { data: chartDataResponse, isLoading } = useTransactionChartData({ period, walletId, offset })
   const { currency } = useSettingsStore()
 
   const totals = useMemo(() => {
@@ -159,7 +162,7 @@ export function PeriodSummaryCard({ period, walletId }: ChartProps) {
       <div className="mb-4">
         <h3 className="font-semibold text-foreground">Period Summary</h3>
         <p className="text-xs text-muted-foreground mt-0.5 capitalize">
-          {period === 'all' ? 'All time' : `This ${period}`}
+          {describePeriod(period, offset)}
         </p>
       </div>
 

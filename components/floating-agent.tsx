@@ -1,24 +1,23 @@
 'use client'
 
-import { EmptyState, PeacockAvatar, PeacockMascot } from '@/components/peacock-mascot'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { PeacockAvatar } from '@/components/peacock-mascot'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuickStats, useTopCategories } from '@/queries/user/transaction/transaction'
+import { useListTransactions } from '@/queries/user/transaction/transaction'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { useListCategories } from '@/queries/user/category/categories'
-import { X, Plus, Send, Camera, CheckCircle2, ChevronDown, Sparkles, ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { X, Send, Camera, CheckCircle2, ChevronDown, ArrowDownLeft, ArrowUpRight, Shuffle } from 'lucide-react'
 import { CreateTransactionModal } from '@/components/page/transaction/create-transaction-modal'
 import { parseTransactionText } from '@/utils/transaction-parser'
+import { frequentTransactionSuggestions } from '@/utils/frequent-transactions'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
-import { getCategoryTotal, normalizeCategoryData } from '@/components/page/statistics/statistics-utils'
 import type { CreateTransactionData } from '@/types/transaction'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-type AgentMode = 'insight' | 'create'
 
 interface ChatMessage {
   id: string
@@ -57,8 +56,6 @@ function RichText({ text }: { text: string }) {
   )
 }
 
-const SUGGESTIONS = ['Spent 150 on lunch', 'Received 5000 freelance', 'Transfer 1000 from BPI to GCash']
-
 const chipClass = (selected: boolean) =>
   `shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
     selected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-foreground hover:border-primary/50'
@@ -68,16 +65,29 @@ const chipClass = (selected: boolean) =>
 // Component
 // ---------------------------------------------------------------------------
 
+type Corner = 'tl' | 'tr' | 'bl' | 'br'
+
+// A soft spring: quick off the mark, a hair of overshoot, then settles.
+const SNAP_TRANSITION = 'transform 480ms cubic-bezier(0.34, 1.32, 0.54, 1)'
+
 export function FloatingAgent() {
-  const { data: quickStatsResponse } = useQuickStats()
   const { data: walletsResponse } = useListWallets()
   const { data: categoriesResponse } = useListCategories()
-  const { data: topCategoriesResponse } = useTopCategories({ period: 'month', type: 'expense' })
+  const { data: recentTransactionsResponse, isLoading: suggestionsLoading } = useListTransactions({ limit: '200' })
   const { currency } = useSettingsStore()
 
   const [isOpen, setIsOpen] = useState(false)
   const [isHidden, setIsHidden] = useState(false)
-  const [mode, setMode] = useState<AgentMode>('insight')
+
+  // Dragging: the whole chat (launcher + panel) moves by an offset from its default corner.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const offsetRef = useRef(offset)
+  const [panelLayout, setPanelLayout] = useState({ up: true, shift: 0, maxH: 608 })
+  const drag = useRef<{ startX: number; startY: number; ox: number; oy: number; baseLeft: number; baseTop: number; w: number; h: number; moved: boolean; samples: { t: number; x: number; y: number }[] } | null>(null)
+  const justDragged = useRef(false)
+  const cornerRef = useRef<Corner>('br')
+  const [dragging, setDragging] = useState(false)
 
   // Chat
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -94,16 +104,142 @@ export function FloatingAgent() {
   const [showWalletPicker, setShowWalletPicker] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Real current translation (it may be mid-slide) and where the element sits with no translation.
+  const measure = () => {
+    const el = rootRef.current
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const m = new DOMMatrixReadOnly(getComputedStyle(el).transform)
+    return { r, tx: m.m41, ty: m.m42, baseLeft: r.left - m.m41, baseTop: r.top - m.m42 }
+  }
+
+  // Write the position straight to the element so dragging never waits on a React render.
+  const moveTo = (next: { x: number; y: number }, animate: boolean) => {
+    offsetRef.current = next
+    const el = rootRef.current
+    if (!el) return
+    el.style.transition = animate ? SNAP_TRANSITION : 'none'
+    el.style.transform = `translate3d(${next.x}px, ${next.y}px, 0)`
+  }
+
+  // Where a corner sits, kept clear of the top header and the bottom tab bar (measured live).
+  const cornerPosition = (corner: Corner, w: number, h: number) => {
+    const W = window.innerWidth
+    const H = window.innerHeight
+    const margin = 16
+    const header = [...document.querySelectorAll('header.ios-blur')].map((el) => el.getBoundingClientRect()).find((rect) => rect.height > 0)
+    const nav = document.querySelector('nav[aria-label="Primary"]')?.getBoundingClientRect()
+    const topLimit = header && header.height > 0 ? header.bottom : 60
+    const bottomLimit = nav && nav.height > 0 ? nav.top : H
+    const left = corner === 'tl' || corner === 'bl' ? margin : W - margin - w
+    const top = corner === 'tl' || corner === 'tr' ? topLimit + margin : bottomLimit - margin - h
+    return { left, top }
+  }
+
+  const applyCorner = useCallback((corner: Corner, animate = true) => {
+    const m = measure()
+    if (!m) return
+    const { left, top } = cornerPosition(corner, m.r.width, m.r.height)
+    const next = { x: Math.round(left - m.baseLeft), y: Math.round(top - m.baseTop) }
+    moveTo(next, animate)
+    setOffset(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Open the panel toward the side of the screen with more room, and keep it on screen.
+  const layoutPanel = useCallback(() => {
+    const m = measure()
+    if (!m) return
+    // Judge by where it will end up, not where it is mid-slide.
+    const top = m.baseTop + offsetRef.current.y
+    const bottom = top + m.r.height
+    const right = m.baseLeft + offsetRef.current.x + m.r.width
+    const W = window.innerWidth
+    const H = window.innerHeight
+    const up = top + m.r.height / 2 > H / 2
+    const panelWidth = Math.min(384, W - 32)
+    const leftEdge = right - panelWidth
+    const shift = leftEdge < 8 ? 8 - leftEdge : 0
+    const available = up ? top - 12 - 64 : H - bottom - 12 - 8
+    setPanelLayout({ up, shift, maxH: Math.min(608, Math.max(240, available)) })
+  }, [])
+
+  const startDrag = (e: React.PointerEvent<HTMLElement>, ignoreButtons = false) => {
+    if (ignoreButtons && (e.target as HTMLElement).closest('button')) return
+    const m = measure()
+    if (!m) return
+    drag.current = {
+      startX: e.clientX, startY: e.clientY, ox: m.tx, oy: m.ty,
+      baseLeft: m.baseLeft, baseTop: m.baseTop, w: m.r.width, h: m.r.height, moved: false,
+      samples: [{ t: performance.now(), x: e.clientX, y: e.clientY }],
+    }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const moveDrag = (e: React.PointerEvent<HTMLElement>) => {
+    const d = drag.current
+    if (!d) return
+    const dx = e.clientX - d.startX
+    const dy = e.clientY - d.startY
+    const now = performance.now()
+    d.samples.push({ t: now, x: e.clientX, y: e.clientY })
+    while (d.samples.length > 2 && now - d.samples[0].t > 120) d.samples.shift()
+    if (!d.moved && Math.hypot(dx, dy) < 6) return
+    if (!d.moved) setDragging(true)
+    d.moved = true
+    // Free movement while held, anywhere on screen.
+    const left = Math.min(Math.max(d.baseLeft + d.ox + dx, 8), Math.max(8, window.innerWidth - 8 - d.w))
+    const top = Math.min(Math.max(d.baseTop + d.oy + dy, 8), Math.max(8, window.innerHeight - 8 - d.h))
+    moveTo({ x: left - d.baseLeft, y: top - d.baseTop }, false)
+  }
+  // On release, snap to the nearest corner.
+  const endDrag = () => {
+    const d = drag.current
+    drag.current = null
+    if (!d?.moved) return
+    justDragged.current = true
+    window.setTimeout(() => { justDragged.current = false }, 60)
+    // Where it would coast to: current spot plus the release velocity (px/ms) over ~260ms.
+    const first = d.samples[0]
+    const last = d.samples[d.samples.length - 1]
+    const span = Math.max(last.t - first.t, 1)
+    const vx = (last.x - first.x) / span
+    const vy = (last.y - first.y) / span
+    const cx = d.baseLeft + offsetRef.current.x + d.w / 2 + vx * 260
+    const cy = d.baseTop + offsetRef.current.y + d.h / 2 + vy * 260
+    const corner: Corner = (cy < window.innerHeight / 2 ? 't' : 'b') + (cx < window.innerWidth / 2 ? 'l' : 'r') as Corner
+    cornerRef.current = corner
+    try { localStorage.setItem('fico-agent-corner', corner) } catch {}
+    setDragging(false)
+    applyCorner(corner)
+  }
+
+  // Restore the saved corner, and keep to it when the window or the bars change size.
+  useEffect(() => {
+    if (isHidden) return
+    try {
+      const saved = localStorage.getItem('fico-agent-corner')
+      if (saved === 'tl' || saved === 'tr' || saved === 'bl' || saved === 'br') cornerRef.current = saved
+    } catch {}
+    const place = () => applyCorner(cornerRef.current, false)
+    place()
+    const timer = window.setTimeout(place, 400)
+    window.addEventListener('resize', place)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('resize', place)
+    }
+  }, [applyCorner, isHidden])
+
+  useEffect(() => {
+    layoutPanel()
+  }, [layoutPanel, offset, isOpen, isHidden])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const topCategories = normalizeCategoryData(topCategoriesResponse?.data)
-  const spendTotal = getCategoryTotal(topCategories)
-  const monthIncome = Number((quickStatsResponse?.data as any)?.income ?? 0)
-  const monthExpenses = Number((quickStatsResponse?.data as any)?.expenses ?? 0)
-  const insight =
-    topCategories.length > 0 && spendTotal > 0
-      ? `Most of your spending this month went to ${topCategories[0].name}, about ${Math.round((topCategories[0].amount / spendTotal) * 100)}% of the total (${formatMoney(topCategories[0].amount, currency, false)}).`
-      : undefined
+  const suggestions = useMemo(() => {
+    const data = recentTransactionsResponse?.data as any
+    return frequentTransactionSuggestions(Array.isArray(data) ? data : data?.items)
+  }, [recentTransactionsResponse])
 
   const wallets: any[] = (walletsResponse?.data as any)?.items ??
     (Array.isArray(walletsResponse?.data) ? (walletsResponse.data as any[]) : [])
@@ -116,16 +252,16 @@ export function FloatingAgent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isProcessing, isOcring, showWalletPicker])
 
-  // Welcome message when switching to create mode
+  // Welcome message
   useEffect(() => {
-    if (mode === 'create' && messages.length === 0) {
+    if (messages.length === 0) {
       setMessages([{
         id: 'welcome',
         role: 'agent',
         content: 'Hi! Tell me about your transaction — type something like "Spent 50 on coffee" or upload a receipt photo 📷',
       }])
     }
-  }, [mode, messages.length])
+  }, [messages.length])
 
   // ---------------------------------------------------------------------------
   // Category & wallet matching
@@ -321,20 +457,6 @@ export function FloatingAgent() {
   }
 
   // ---------------------------------------------------------------------------
-  // Mode switch
-  // ---------------------------------------------------------------------------
-  const switchMode = (next: AgentMode) => {
-    setMode(next)
-    if (next === 'create') {
-      setMessages([])        // triggers welcome message via useEffect
-      setPendingTransaction(null)
-      setShowWalletPicker(false)
-      setSelectedWalletId('')
-      setSelectedToWalletId('')
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Render: hidden state
   // ---------------------------------------------------------------------------
   if (isHidden) {
@@ -351,7 +473,7 @@ export function FloatingAgent() {
   }
 
   const isTransfer = pendingTransaction?.type === 'transfer'
-  const showSuggestions = mode === 'create' && messages.length <= 1 && !isProcessing && !isOcring && !showWalletPicker
+  const showSuggestions = messages.length <= 1 && !isProcessing && !isOcring && !showWalletPicker
   const busy = isProcessing || isOcring
 
   // ---------------------------------------------------------------------------
@@ -359,23 +481,34 @@ export function FloatingAgent() {
   // ---------------------------------------------------------------------------
   return createPortal(
     <>
-      <div className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] right-4 z-50 lg:bottom-6 lg:right-6">
+      <div
+        ref={rootRef}
+        className="fixed bottom-[calc(var(--bottom-nav-h)+1rem)] right-4 z-50 lg:bottom-6 lg:right-6"
+        style={{ transform: `translate3d(${offsetRef.current.x}px, ${offsetRef.current.y}px, 0)`, transition: dragging ? 'none' : SNAP_TRANSITION, willChange: 'transform' }}
+      >
 
         {/* ── Panel ── */}
         <div
-          className={`absolute bottom-[4.75rem] right-0 origin-bottom-right transition-all duration-300 ease-out ${
+          className={`absolute ${panelLayout.up ? 'bottom-[4.75rem] origin-bottom-right' : 'top-[4.75rem] origin-top-right'} transition-all duration-300 ease-out ${
             isOpen ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0'
           }`}
+          style={{ right: `${-panelLayout.shift}px` }}
           aria-hidden={!isOpen}
         >
           <div
             role="dialog"
             aria-label="Fico"
             className="flex w-[calc(100vw-2rem)] max-w-[24rem] flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-ios-lg"
-            style={{ maxHeight: 'min(38rem, calc(100dvh - var(--bottom-nav-h) - 7rem))' }}
+            style={{ maxHeight: `${panelLayout.maxH}px` }}
           >
             {/* Header */}
-            <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-primary to-[#004C99] px-4 pb-3 pt-4 text-white">
+            <div
+              className="relative shrink-0 cursor-grab touch-none select-none overflow-hidden bg-gradient-to-br from-primary to-[#004C99] px-4 pb-3 pt-4 text-white active:cursor-grabbing"
+              onPointerDown={(e) => startDrag(e, true)}
+              onPointerMove={moveDrag}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+            >
               <svg viewBox="0 0 200 200" className="pointer-events-none absolute -right-8 -top-10 h-40 w-40 opacity-20" aria-hidden="true">
                 <g transform="translate(120 110)">
                   <circle r="70" fill="#00D9CC" />
@@ -388,81 +521,22 @@ export function FloatingAgent() {
                 <PeacockAvatar className="h-11 w-11 ring-2 ring-white/40" />
                 <div className="min-w-0 flex-1">
                   <p className="font-heading text-base font-semibold leading-tight">Fico</p>
-                  <p className="text-xs text-white/75">Your money buddy</p>
+                  <p className="text-xs text-white/75">Add transactions by chat</p>
                 </div>
+                <button
+                  onClick={() => { setIsOpen(false); setIsHidden(true) }}
+                  className="rounded-full px-2.5 py-1 text-xs font-medium text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+                >
+                  Hide
+                </button>
                 <button onClick={() => setIsOpen(false)} aria-label="Close Fico" className="rounded-full p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white">
                   <ChevronDown size={20} />
                 </button>
               </div>
-              <div role="group" aria-label="Fico mode" className="relative mt-3 grid grid-cols-2 gap-1 rounded-full bg-white/15 p-1 text-sm font-semibold">
-                {([
-                  ['insight', 'Insights'],
-                  ['create', 'Add by chat'],
-                ] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    onClick={() => switchMode(value)}
-                    aria-pressed={mode === value}
-                    className={`rounded-full py-1.5 transition-colors ${mode === value ? 'bg-white text-primary' : 'text-white/85 hover:text-white'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
 
-            {/* ── INSIGHT MODE ── */}
-            {mode === 'insight' && (
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
-                <div className="flex items-end gap-1">
-                  <PeacockMascot pose="advisor" className="-mb-1 h-24 w-24 shrink-0" label="Fico, your financial advisor" />
-                  <div className="relative mb-2 min-w-0 flex-1 rounded-2xl rounded-bl-md border border-border bg-secondary/60 p-3">
-                    <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">
-                      <Sparkles size={12} />
-                      Fico noticed
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-foreground">
-                      {insight ?? 'Add a few transactions and I will start spotting patterns in your spending.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl bg-secondary/60 p-3">
-                    <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                      <ArrowDownLeft size={13} className="text-success" />
-                      In this month
-                    </p>
-                    <p className="mt-1 truncate text-base font-semibold tabular-nums text-foreground">{formatMoney(monthIncome, currency, false)}</p>
-                  </div>
-                  <div className="rounded-2xl bg-secondary/60 p-3">
-                    <p className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                      <ArrowUpRight size={13} className="text-warning" />
-                      Out this month
-                    </p>
-                    <p className="mt-1 truncate text-base font-semibold tabular-nums text-foreground">{formatMoney(monthExpenses, currency, false)}</p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => switchMode('create')}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-primary py-2.5 text-sm font-semibold text-primary-foreground shadow-ios transition-opacity hover:opacity-90"
-                  >
-                    <Plus size={16} /> Add a transaction
-                  </button>
-                  <button
-                    onClick={() => { setIsOpen(false); setIsHidden(true) }}
-                    className="rounded-full border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  >
-                    Hide
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* ── CREATE MODE ── */}
-            {mode === 'create' && (
+            {(
               <div className="flex min-h-0 flex-1 flex-col">
 
                 {/* Messages */}
@@ -547,14 +621,35 @@ export function FloatingAgent() {
                     </div>
                   )}
 
-                  {/* Starter prompts */}
+                  {/* Starter prompts: what you log most */}
                   {showSuggestions && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {SUGGESTIONS.map(text => (
-                        <button key={text} type="button" onClick={() => setInputText(text)} className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/50 hover:bg-primary/5">
-                          {text}
-                        </button>
-                      ))}
+                    <div className="space-y-2 pt-1">
+                      <p className="text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Your usual</p>
+                      {suggestionsLoading && [0, 1, 2].map(i => <Skeleton key={i} className="h-[3.25rem] w-full rounded-2xl" />)}
+                      {!suggestionsLoading && suggestions.map(suggestion => {
+                        const tone =
+                          suggestion.type === 'income' ? 'bg-success/15 text-success' : suggestion.type === 'expense' ? 'bg-warning/15 text-warning' : 'bg-primary/10 text-primary'
+                        const Icon = suggestion.type === 'income' ? ArrowDownLeft : suggestion.type === 'expense' ? ArrowUpRight : Shuffle
+                        return (
+                          <button
+                            key={suggestion.text}
+                            type="button"
+                            onClick={() => setInputText(suggestion.text)}
+                            className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background px-3 py-2.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+                          >
+                            <span className={`flex size-8 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+                              <Icon size={16} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-foreground">{suggestion.label}</span>
+                              <span className="block text-xs text-muted-foreground">
+                                {suggestion.type === 'income' ? 'Money in' : suggestion.type === 'expense' ? 'Money out' : 'Transfer'}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">{formatMoney(suggestion.amount, currency, false)}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                   )}
 
@@ -603,10 +698,14 @@ export function FloatingAgent() {
 
         {/* ── Launcher ── */}
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => { if (!justDragged.current) setIsOpen(!isOpen) }}
+          onPointerDown={(e) => startDrag(e)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
           aria-label={isOpen ? 'Close Fico' : 'Open Fico'}
           aria-expanded={isOpen}
-          className={`relative flex h-16 w-16 items-center justify-center rounded-full bg-card shadow-ios-lg ring-2 ring-primary/40 transition-all duration-300 hover:ring-primary ${
+          className={`relative flex h-16 w-16 touch-none select-none items-center justify-center rounded-full bg-card shadow-ios-lg ring-2 ring-primary/40 transition-all duration-300 hover:ring-primary ${
             isOpen ? 'scale-95' : 'scale-100'
           }`}
         >

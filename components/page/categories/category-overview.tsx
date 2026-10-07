@@ -11,6 +11,7 @@ interface CategoryOverviewProps {
   monthlyBudget: number
   budgetAlerts: number
   currency: string
+  isLoading?: boolean
 }
 
 export function CategoryOverview({
@@ -19,6 +20,7 @@ export function CategoryOverview({
   monthlyBudget,
   budgetAlerts,
   currency,
+  isLoading,
 }: CategoryOverviewProps) {
   const { currency: settingsCurrency, hideAmountsOnOpen } = useSettingsStore()
   const resolvedCurrency = currency || settingsCurrency
@@ -32,6 +34,7 @@ export function CategoryOverview({
           value={`${totalCategories}`}
           note="Active in your profile"
           icon={<Tag className="w-4 h-4 sm:w-5 sm:h-5" />}
+          isLoading={isLoading}
           tone="primary"
         />
         <StatTile
@@ -39,6 +42,7 @@ export function CategoryOverview({
           value={mostUsedCategory}
           note="By transaction count"
           icon={<PieChart className="w-4 h-4 sm:w-5 sm:h-5" />}
+          isLoading={isLoading}
           tone="accent"
         />
         <StatTile
@@ -46,6 +50,7 @@ export function CategoryOverview({
           value={budget}
           note="+5.2% from last month"
           icon={<TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />}
+          isLoading={isLoading}
           tone="success"
         />
         <StatTile
@@ -53,6 +58,7 @@ export function CategoryOverview({
           value={`${budgetAlerts}`}
           note="Categories over budget"
           icon={<AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />}
+          isLoading={isLoading}
           tone="destructive"
         />
       </StatGrid>

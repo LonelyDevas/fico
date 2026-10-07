@@ -3,6 +3,7 @@
 import { Wallet, TrendingUp, AlertCircle, PieChart, Info } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface BudgetOverviewProps {
   totalBudgeted: number
@@ -13,6 +14,7 @@ interface BudgetOverviewProps {
   currency: string
   burnRate?: number
   message?: string
+  loading?: boolean
 }
 
 export function BudgetOverview({
@@ -23,7 +25,8 @@ export function BudgetOverview({
   exceededBudgets,
   currency,
   burnRate = 0,
-  message
+  message,
+  loading,
 }: BudgetOverviewProps) {
   const percentageSpent = totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0
   
@@ -32,6 +35,28 @@ export function BudgetOverview({
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6 mb-8" aria-label="Loading">
+        <div className="bg-card border border-border rounded-2xl p-6 md:p-8 shadow-ios">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div className="space-y-4">
+              <Skeleton className="h-4 w-56" />
+              <Skeleton className="h-10 w-64" />
+              <Skeleton className="h-3.5 w-72 max-w-full" />
+              <Skeleton className="h-4 w-full rounded-full" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-24 rounded-xl" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

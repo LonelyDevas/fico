@@ -89,8 +89,6 @@ export default function BillsPage() {
   const {
     data: billsResponse,
     isLoading: billsLoading,
-    isFetching: billsFetching,
-    refetch: refetchBills,
   } = useListBills(apiParams)
 
   const { data: summaryResponse, isLoading: summaryLoading } = useBillSummary()
@@ -229,8 +227,6 @@ export default function BillsPage() {
       <IonContent className="bg-background text-foreground">
         <main className="flex-1">
           <BillsHeader
-            onRefresh={() => refetchBills()}
-            isRefreshing={billsFetching}
             onCreate={() => {
               setEditingBill(null)
               setBillModalOpen(true)

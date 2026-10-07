@@ -38,7 +38,7 @@
   --shadow-ios: 0 8px 30px -6px rgb(15 20 25 / 0.10), 0 2px 8px -2px rgb(15 20 25 / 0.06);
   --shadow-ios-lg: 0 20px 50px -12px rgb(15 20 25 / 0.18), 0 8px 20px -6px rgb(15 20 25 / 0.10);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
-  --bottom-nav-h: 5.25rem;
+  --bottom-nav-h: calc(4.75rem + max(0.5rem, env(safe-area-inset-bottom)));
 }
 
 .dark {
@@ -158,11 +158,41 @@ html {
   touch-action: manipulation;
 }
 
-/* iOS Safari reports a shorter "initial" viewport than what is visible once its toolbars
-   collapse. Size the Ionic app to the dynamic viewport so nothing ends above the screen bottom. */
+/* Pin the app to the screen edges. vh/dvh units on iOS disagree with the real visible area
+   (toolbars, Home Screen mode), which left the bottom bar floating above the screen bottom.
+   A fixed box with all four insets at 0 always matches what is actually visible. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 ion-app {
+  position: fixed;
+  inset: 0;
+  height: auto;
+}
+
+/* Home Screen app on iPhone: innerHeight is ~59pt shorter than the screen (see utils/viewport-fix.ts),
+   so size to the real screen height instead of the short layout viewport. */
+/* Pages run all the way down behind the bottom tab bar; the spacing that keeps the last item
+   clear of the bar lives inside each page's scroll area, so nothing is clipped above the bar. */
+@media (max-width: 1023.98px) {
+  .has-bottom-nav ion-content::part(scroll) {
+    padding-bottom: var(--bottom-nav-h);
+  }
+}
+
+/* Bottom sheets follow the visible area (above the keyboard), not the layout viewport. */
+[data-sheet-mobile] {
+  bottom: var(--vv-inset, 0px) !important;
+  max-height: min(94dvh, var(--vv-max, 94dvh)) !important;
+}
+
+html[data-app-h] ion-app {
   bottom: auto;
-  height: 100dvh;
+  height: var(--app-h);
 }
 
 /* Force all elements to transition simultaneously during theme switch */
@@ -548,6 +578,10 @@ html.theme-switching *::after {
 .pk-droop { transform-origin: 116px 110px; transform: rotate(12deg); }
 .pk-eyes { transform-origin: 80px 83px; animation: pk-blink 4.8s infinite; }
 .pk-nudge { animation: pk-nudge 4s ease-in-out infinite; }
+.pk-look { animation: pk-look 7s ease-in-out infinite; }
+.pk-hop { transform-origin: 80px 200px; animation: pk-hop 1.5s ease-in-out infinite; }
+.pk-twinkle { transform-box: fill-box; transform-origin: center; animation: pk-twinkle 2.2s ease-in-out infinite; }
+.pk-twinkle-late { animation-delay: 1.1s; }
 .pk-spin { transform-box: fill-box; transform-origin: center; animation: pk-spin 10s linear infinite; }
 
 @keyframes pk-breathe { to { transform: scale(1, 1.02); } }
@@ -555,7 +589,67 @@ html.theme-switching *::after {
 @keyframes pk-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
 @keyframes pk-nudge { 0%, 80%, 100% { transform: translateY(0); } 88% { transform: translateY(-3px); } }
 @keyframes pk-spin { to { transform: rotate(360deg); } }
+@keyframes pk-look { 0%, 28%, 100% { transform: translate(0, 0); } 36%, 52% { transform: translate(-2px, 1px); } 64%, 80% { transform: translate(1.6px, -1px); } }
+@keyframes pk-hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 45% { transform: translateY(-3px) scale(1, 1.03); } }
+@keyframes pk-twinkle { 0%, 100% { transform: scale(0.3); opacity: 0.2; } 50% { transform: scale(1); opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .pk-bob, .pk-tail, .pk-eyes, .pk-nudge, .pk-spin { animation: none; }
+  .pk-bob, .pk-tail, .pk-eyes, .pk-nudge, .pk-spin, .pk-look, .pk-hop, .pk-twinkle { animation: none; }
+}
+
+/* Celebration dialog: confetti burst, falling coins, drawn check */
+.cel-piece {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  opacity: 0;
+}
+.cel-coin {
+  position: absolute;
+  top: -40px;
+  border-radius: 9999px;
+  opacity: 0;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 55%, rgba(176, 106, 0, 0.55) 57%, transparent 62%),
+    linear-gradient(135deg, #ffe98a, #ffc531 55%, #e08a00);
+  box-shadow: 0 2px 4px rgba(122, 62, 0, 0.35);
+}
+.cel-check-circle {
+  stroke-dasharray: 164;
+  stroke-dashoffset: 164;
+}
+.cel-check-tick {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cel-piece { animation: cel-burst 1.7s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+  .cel-coin { animation: cel-coin-fall 2.4s cubic-bezier(0.4, 0, 0.9, 0.6) both; }
+  .cel-check-circle { animation: cel-draw 0.6s ease-out 0.1s forwards; }
+  .cel-check-tick { animation: cel-draw 0.4s ease-out 0.55s forwards; }
+  .cel-ring { animation: cel-ring 1.2s ease-out 0.5s both; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cel-check-circle, .cel-check-tick { stroke-dashoffset: 0; }
+  .cel-ring { opacity: 0.4; }
+}
+
+@keyframes cel-burst {
+  0% { opacity: 1; transform: translate(-50%, -50%) translate(0, 0) rotate(0deg) scale(0.4); }
+  35% { opacity: 1; transform: translate(-50%, -50%) translate(var(--x), var(--y)) rotate(calc(var(--r) * 0.5)) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(calc(var(--x) * 1.15), calc(var(--y) + var(--fall))) rotate(var(--r)) scale(0.9); }
+}
+@keyframes cel-coin-fall {
+  0% { opacity: 1; transform: translateY(0) rotateY(0deg); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(var(--fall)) rotateY(900deg); }
+}
+@keyframes cel-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes cel-ring {
+  0% { opacity: 0.9; transform: scale(0.7); }
+  100% { opacity: 0; transform: scale(1.7); }
 }

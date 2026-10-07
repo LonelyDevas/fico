@@ -12,6 +12,7 @@ import { InvestmentSheet } from '@/components/page/investments/investment-sheet'
 import { useArchiveInvestment, useInvestmentSummary, useListInvestments } from '@/queries/user/investment/investments'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Investment, InvestmentType } from '@/types/investment'
 
 export default function InvestmentsPage() {
@@ -22,7 +23,7 @@ export default function InvestmentsPage() {
   const [action, setAction] = useState<{ action: InvestmentAction; investment: Investment } | null>(null)
 
   const { data: listResponse, isLoading } = useListInvestments({ limit: '100' })
-  const { data: summaryResponse } = useInvestmentSummary()
+  const { data: summaryResponse, isLoading: summaryLoading } = useInvestmentSummary()
   const { mutate: archive } = useArchiveInvestment()
 
   const all: Investment[] = useMemo(() => {
@@ -89,7 +90,14 @@ export default function InvestmentsPage() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Fico&apos;s take
                 </p>
-                <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+                {summaryLoading ? (
+                  <div className="mt-2 space-y-2" aria-label="Loading">
+                    <Skeleton className="h-3.5 w-full" />
+                    <Skeleton className="h-3.5 w-2/3" />
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+                )}
                 <span aria-hidden="true" className="absolute -right-3.5 bottom-6 h-3.5 w-3.5 rounded-full border border-border bg-card shadow-sm sm:bottom-8" />
                 <span aria-hidden="true" className="absolute -right-[1.65rem] bottom-4 h-2 w-2 rounded-full border border-border bg-card shadow-sm sm:bottom-6" />
               </div>
@@ -118,12 +126,21 @@ export default function InvestmentsPage() {
                   Add
                 </button>
               </div>
-              <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{money(worth)}</p>
-              <p className="mt-1 text-xs text-white/75">
-                {gain >= 0 ? '+' : '-'}
-                {money(Math.abs(gain))} ({rate >= 0 ? '+' : ''}
-                {rate.toFixed(1)}%) including returns
-              </p>
+              {summaryLoading ? (
+                <>
+                  <Skeleton className="mt-2 h-10 w-52 bg-white/20 sm:h-12" />
+                  <Skeleton className="mt-2 h-3 w-40 bg-white/20" />
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{money(worth)}</p>
+                  <p className="mt-1 text-xs text-white/75">
+                    {gain >= 0 ? '+' : '-'}
+                    {money(Math.abs(gain))} ({rate >= 0 ? '+' : ''}
+                    {rate.toFixed(1)}%) including returns
+                  </p>
+                </>
+              )}
               <div className="mt-4 grid grid-cols-2 gap-3">
                 {[
                   { label: 'Put in', value: invested },
@@ -131,7 +148,7 @@ export default function InvestmentsPage() {
                 ].map((tile) => (
                   <div key={tile.label} className="rounded-2xl bg-white/12 p-3">
                     <p className="text-xs font-medium text-white/75">{tile.label}</p>
-                    <p className="mt-1 truncate text-base font-semibold tabular-nums sm:text-lg">{money(tile.value)}</p>
+                    <div className="mt-1 truncate text-base font-semibold tabular-nums sm:text-lg">{summaryLoading ? <Skeleton className="h-6 w-20 bg-white/20" /> : money(tile.value)}</div>
                   </div>
                 ))}
               </div>

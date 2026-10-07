@@ -81,7 +81,7 @@ export default function ManagePage() {
                   <ChevronRight className="h-3.5 w-3.5" />
                 </span>
               </div>
-              <PeacockMascot pose="advisor" className="hidden h-24 w-24 shrink-0 sm:block" label="" />
+              <PeacockMascot pose="advisor" glasses={false} className="hidden h-24 w-24 shrink-0 sm:block" label="" />
             </div>
           </Link>
 

@@ -6,7 +6,7 @@ export const handleApiError = (error: any) => {
   const status = error.response?.status
   const data = error.response?.data.data ?? ''
   const message = error.response?.data.message ?? ''
-  const errMessage = `${data} ${message}`
+  const errMessage = `${data} ${message}`.trim() || error?.message || 'Something went wrong'
   const clearAuth = useAuthStore.getState().clearAuth
 
 

@@ -14,6 +14,7 @@ import { useListTransactions, useQuickStats, useTopCategories } from '@/queries/
 import { useBillCalendar } from '@/queries/user/bill/bills'
 import { getCategoryTotal, normalizeCategoryData } from '@/components/page/statistics/statistics-utils'
 import { formatMoney } from '@/utils/formatter'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const SHORTCUTS: { label: string; hint: string; href: string; icon: LucideIcon }[] = [
   { label: 'Budgets', hint: 'Set spending limits', href: '/budgets', icon: PieChart },
@@ -60,7 +61,7 @@ export default function DashboardPage() {
   const [showAmounts, setShowAmounts] = useState(!hideAmountsOnOpen)
   const money = (value: number) => formatMoney(value, currency, !showAmounts)
 
-  const { data: walletsResponse } = useListWallets()
+  const { data: walletsResponse, isLoading: walletsLoading } = useListWallets()
   const { data: statsResponse, isLoading: statsLoading } = useQuickStats({ period })
   const { data: categoriesResponse, isLoading: categoriesLoading } = useTopCategories({ period, type: 'expense' })
   const { data: transactionsResponse, isLoading: transactionsLoading } = useListTransactions({ limit: '5' })
@@ -164,6 +165,8 @@ export default function DashboardPage() {
                   income={money(income)}
                   expenses={money(expenses)}
                   statsLoading={statsLoading}
+                  balanceLoading={walletsLoading}
+                  noteLoading={statsLoading || categoriesLoading}
                   period={period}
                   onPeriodChange={setPeriod}
                   showAmounts={showAmounts}
@@ -187,7 +190,7 @@ export default function DashboardPage() {
               <Card className="order-4 lg:order-none">
                 <CardHeader title={`Where it went ${periodPhrase}`} to="/statistics" linkLabel="Details" />
                 {categoriesLoading ? (
-                  <div className="h-24 animate-pulse rounded-2xl bg-secondary" />
+                  <Skeleton className="h-24 rounded-2xl" />
                 ) : categories.length > 0 ? (
                   <>
                     <div className="flex h-3 gap-0.5 overflow-hidden rounded-full" role="img" aria-label="Spending split by category">
@@ -242,6 +245,8 @@ export default function DashboardPage() {
               <Card className="order-3 lg:order-none">
                 <CardHeader title="Your money" to="/wallets" linkLabel="Open" />
                 <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
+                  {walletsLoading &&
+                    [0, 1, 2].map((i) => <Skeleton key={i} className="h-[4.25rem] min-w-[9.5rem] shrink-0 rounded-2xl" />)}
                   {wallets.map((wallet) => (
                     <Link
                       key={wallet.id}
@@ -254,6 +259,7 @@ export default function DashboardPage() {
                       </span>
                     </Link>
                   ))}
+                  {!walletsLoading && (
                   <Link
                     to="/wallets"
                     className="flex min-w-[9.5rem] shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border p-3 text-sm font-semibold text-primary hover:bg-primary/5"
@@ -261,6 +267,7 @@ export default function DashboardPage() {
                     <Plus className="h-5 w-5" />
                     New wallet
                   </Link>
+                  )}
                 </div>
               </Card>
 
@@ -268,7 +275,7 @@ export default function DashboardPage() {
               <Card className="order-5 lg:order-none">
                 <CardHeader title="Coming up" to="/bills" linkLabel="All bills" />
                 {billsLoading ? (
-                  <div className="h-24 animate-pulse rounded-2xl bg-secondary" />
+                  <Skeleton className="h-24 rounded-2xl" />
                 ) : dueBills.length > 0 ? (
                   <ul className="space-y-2">
                     {dueBills.map((bill) => {
@@ -309,7 +316,7 @@ export default function DashboardPage() {
                 {transactionsLoading ? (
                   <div className="space-y-2">
                     {[0, 1, 2].map((i) => (
-                      <div key={i} className="h-12 animate-pulse rounded-2xl bg-secondary" />
+                      <Skeleton key={i} className="h-12 rounded-2xl" />
                     ))}
                   </div>
                 ) : transactions.length > 0 ? (

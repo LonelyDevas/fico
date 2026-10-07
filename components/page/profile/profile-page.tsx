@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { useHistory } from 'react-router-dom'
+import { useRootNavigate } from '@/utils/use-root-navigate'
 import toast from 'react-hot-toast'
 import { Camera, IdCard, KeyRound, LogOut, Mail, Shield, Trash2, Upload, User as UserIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -9,11 +9,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/store/auth-store'
+import { celebrate } from '@/store/celebration-store'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useLogout, useUpdateAvatar, useUpdateName, useUpdatePassword, useUpdateUsername } from '@/queries/auth/auth'
 
 export function ProfilePageContent() {
-  const history = useHistory()
+  const rootNavigate = useRootNavigate()
   const user = useAuthStore((state) => state.user)
   const setAuth = useAuthStore((state) => state.setAuth)
   const clearAuth = useAuthStore((state) => state.clearAuth)
@@ -97,7 +98,7 @@ export function ProfilePageContent() {
     }
     updatePassword(newPassword, {
       onSuccess: () => {
-        toast.success('Password updated')
+        celebrate({ kind: 'check', title: 'Password updated', message: 'Use your new password the next time you sign in.' })
         setNewPassword('')
         setConfirmPassword('')
       },
@@ -108,7 +109,7 @@ export function ProfilePageContent() {
     logout(undefined, {
       onSettled: () => {
         clearAuth()
-        history.push('/signin')
+        rootNavigate('/signin', { clearCache: true })
       },
     })
   }

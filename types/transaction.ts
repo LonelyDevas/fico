@@ -79,6 +79,8 @@ export type transactionsSummaryParams = {
 
 export type quickStatsTransactionParams = {
   period: string; // today, week, month, year, all
+  /** Steps back (negative) from the current period; Supabase backend only. */
+  offset?: number;
   walletId?: string;
   type?: TransactionType;
 }

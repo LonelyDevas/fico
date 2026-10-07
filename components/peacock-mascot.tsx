@@ -1,12 +1,14 @@
 import { useId, type ReactNode } from 'react'
 
-type Pose = 'empty' | 'advisor' | 'plain'
+type Pose = 'empty' | 'advisor' | 'plain' | 'happy'
 
 interface PeacockMascotProps {
   pose?: Pose
   className?: string
   label?: string
   viewBox?: string
+  /** Gold glasses mark the serious moments (money summaries, advice). Defaults on for 'advisor' only. */
+  glasses?: boolean
 }
 
 const FAN = [
@@ -38,6 +40,7 @@ export function PeacockMascot({
   className = 'w-36 h-36',
   label = 'Fico peacock',
   viewBox = '16 16 194 194',
+  glasses = pose === 'advisor',
 }: PeacockMascotProps) {
   const clipId = useId()
 
@@ -48,7 +51,7 @@ export function PeacockMascot({
           <ellipse cx="78" cy="146" rx="52" ry="56" />
         </clipPath>
       </defs>
-      <g className="pk-bob">
+      <g className={pose === 'happy' ? 'pk-hop' : 'pk-bob'}>
         <g className={pose === 'empty' ? 'pk-droop' : 'pk-tail'}>
           <g fill="#00B8AD" opacity=".85">
             <circle cx="116" cy="110" r="66" />
@@ -96,21 +99,48 @@ export function PeacockMascot({
           <circle cx="57" cy="30" r="2.4" />
           <circle cx="103" cy="30" r="2.4" />
         </g>
+        {pose === 'happy' ? (
+          <>
+            <g fill="none" stroke="#071B45" strokeWidth="4.2" strokeLinecap="round">
+              <path d="M55.5 85Q65 70 74.5 85" />
+              <path d="M85.5 85Q95 70 104.5 85" />
+            </g>
+            <g fill="#FF8FB1" opacity=".75">
+              <ellipse cx="50" cy="95" rx="5.5" ry="3.2" />
+              <ellipse cx="110" cy="95" rx="5.5" ry="3.2" />
+            </g>
+          </>
+        ) : (
+          <g className="pk-eyes">
+            <ellipse cx="65" cy="80" rx="10.5" ry="12.5" fill="#fff" />
+            <ellipse cx="95" cy="80" rx="10.5" ry="12.5" fill="#fff" />
+            <g className="pk-look">
+              <ellipse cx="68" cy="79" rx="6.2" ry="8.6" fill="#3B3F4A" />
+              <ellipse cx="98" cy="79" rx="6.2" ry="8.6" fill="#3B3F4A" />
+              <circle cx="71.5" cy="73.5" r="3" fill="#fff" />
+              <circle cx="101.5" cy="73.5" r="3" fill="#fff" />
+            </g>
+          </g>
+        )}
+        {glasses && (
+          <g className="pk-nudge" fill="#fff" fillOpacity=".14" stroke="#E8A33D" strokeWidth="2" strokeLinecap="round">
+            <circle cx="65" cy="80" r="13.5" />
+            <circle cx="95" cy="80" r="13.5" />
+            <path d="M78.5 79Q80 77 81.5 79" fill="none" />
+            <path d="M51.5 78L45 75M108.5 78L115 75" fill="none" />
+          </g>
+        )}
         <path d="M75 92h10l-5 8z" fill="#E8A33D" stroke="#E8A33D" strokeWidth="6" strokeLinejoin="round" />
-        <g className="pk-eyes">
-          <circle cx="66" cy="83" r="5.4" fill="#0F1419" />
-          <circle cx="94" cy="83" r="5.4" fill="#0F1419" />
-          <circle cx="67.8" cy="81" r="1.7" fill="#fff" />
-          <circle cx="95.8" cy="81" r="1.7" fill="#fff" />
-        </g>
+
+        {pose === 'happy' && (
+          <g fill="#fff">
+            <path className="pk-twinkle" d="M36 56l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
+            <path className="pk-twinkle pk-twinkle-late" d="M124 50l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" />
+          </g>
+        )}
 
         {pose === 'advisor' && (
           <>
-            <g className="pk-nudge" fill="none" stroke="#F1F5F9" strokeWidth="1.5">
-              <circle cx="66" cy="82" r="10" />
-              <circle cx="94" cy="82" r="10" />
-              <path d="M76 82h8" />
-            </g>
             <path d="M65 120L80 128L65 136Z M95 120L80 128L95 136Z" fill="#0F1419" />
             <circle cx="80" cy="128" r="3.6" fill="#0066CC" />
           </>
@@ -132,7 +162,7 @@ export function PeacockMascot({
 /** Round head-and-crest crop for small spots: chat avatars, the assistant launcher. Still, no animation. */
 export function PeacockAvatar({ className = 'w-8 h-8', label = '' }: { className?: string; label?: string }) {
   return (
-    <span className={`inline-block shrink-0 overflow-hidden rounded-full bg-[#F1F5F9] [&_*]:animate-none ${className}`}>
+    <span className={`inline-block shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-[#D9FBF8] to-[#9ADFF2] [&_*]:animate-none ${className}`}>
       <PeacockMascot pose="plain" className="w-full h-full" viewBox="26 14 108 108" label={label} />
     </span>
   )
@@ -149,7 +179,7 @@ interface EmptyStateProps {
 export function EmptyState({ pose = 'empty', title, description, compact = false, children }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center text-center">
-      <PeacockMascot pose={pose} className={compact ? 'w-24 h-24' : 'w-36 h-36'} label="" />
+      <PeacockMascot pose={pose} glasses={false} className={compact ? 'w-24 h-24' : 'w-36 h-36'} label="" />
       <p className="mt-2 font-semibold text-foreground">{title}</p>
       {description && <p className="mt-1 text-sm text-muted-foreground max-w-xs">{description}</p>}
       {children && <div className="mt-4">{children}</div>}

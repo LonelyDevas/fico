@@ -19,6 +19,7 @@ import { getCategoryTotal, normalizeCategoryData, type CategoryDatum } from './s
 type StatisticsProps = {
   period: 'today' | 'week' | 'month' | 'year' | 'all'
   walletId?: string
+  offset?: number
 }
 
 function CategoryTooltip({ active, payload }: TooltipProps<number, string>) {
@@ -39,8 +40,8 @@ function CategoryTooltip({ active, payload }: TooltipProps<number, string>) {
   )
 }
 
-export function CategoryDistributionCard({ period, walletId }: StatisticsProps) {
-  const { data: topCategoriesResponse, isLoading } = useTopCategories({ period, walletId, type: 'expense' })
+export function CategoryDistributionCard({ period, walletId, offset = 0 }: StatisticsProps) {
+  const { data: topCategoriesResponse, isLoading } = useTopCategories({ period, walletId, offset, type: 'expense' })
   const { hideAmountsOnOpen, currency } = useSettingsStore()
 
   const categories = useMemo(() => normalizeCategoryData(topCategoriesResponse?.data), [topCategoriesResponse])

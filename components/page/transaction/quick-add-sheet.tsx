@@ -114,12 +114,16 @@ export function QuickAddSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, transaction?.id])
 
+  // An expense can't be paid straight from a savings wallet: transfer the money out first.
+  const sourceWallets = type === 'expense' ? wallets.filter((w) => w.type !== 'savings') : wallets
+  const savingsHidden = wallets.length - sourceWallets.length
+
   // Fall back to the first wallet when nothing (or a stale wallet) was remembered.
   useEffect(() => {
     if (!open || wallets.length === 0) return
-    const ids = wallets.map(walletIdOf)
-    if (!ids.includes(walletId)) setWalletId(ids[0])
-  }, [open, wallets, walletId])
+    const ids = sourceWallets.map(walletIdOf)
+    if (ids.length > 0 && !ids.includes(walletId)) setWalletId(ids[0])
+  }, [open, sourceWallets, walletId])
 
   const amount = parseFloat(digits) || 0
   const fee = feeOn ? parseFloat(feeText) || 0 : 0
@@ -241,7 +245,7 @@ export function QuickAddSheet({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+              className="max-md:hidden rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
               <X className="h-5 w-5" />
             </button>
@@ -277,9 +281,9 @@ export function QuickAddSheet({
 
             <div>
               <p className={label}>{type === 'transfer' ? 'From' : 'Wallet'}</p>
-              {wallets.length > 0 ? (
+              {sourceWallets.length > 0 ? (
                 <div className={scrollRow}>
-                  {wallets.map((wallet, index) => {
+                  {sourceWallets.map((wallet, index) => {
                     const id = walletIdOf(wallet, index)
                     return (
                       <button key={id} type="button" onClick={() => selectWallet(id)} className={chip(walletId === id)}>
@@ -294,7 +298,12 @@ export function QuickAddSheet({
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Create a wallet first, then come back to add transactions.</p>
+                <p className="text-sm text-muted-foreground">
+                  {savingsHidden > 0 ? 'Savings wallets can\u2019t pay directly. Transfer the money to another wallet first.' : 'Create a wallet first, then come back to add transactions.'}
+                </p>
+              )}
+              {savingsHidden > 0 && sourceWallets.length > 0 && (
+                <p className="mt-1.5 text-xs text-muted-foreground">Savings wallets can\u2019t pay directly. Transfer the money to another wallet first.</p>
               )}
             </div>
 

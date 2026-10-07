@@ -30,7 +30,7 @@ function Sheet({
 
   return (
     <SheetModeContext.Provider value={isMobile}>
-      <Root data-slot="sheet" {...props}>
+      <Root data-slot="sheet" {...(isMobile ? { repositionInputs: false } : {})} {...props}>
         {children}
       </Root>
     </SheetModeContext.Provider>
@@ -86,6 +86,7 @@ function SheetContent({
       <SheetOverlay />
       <Content
         data-slot="sheet-content"
+        data-sheet-mobile={isMobile ? '' : undefined}
         className={cn(
           "bg-background outline-none flex flex-col gap-4",
           isMobile
@@ -97,7 +98,7 @@ function SheetContent({
       >
         {isMobile && <VaulDrawer.Handle className="sheet-handle mt-3 mb-1" />}
         {children}
-        {showCloseButton && (
+        {showCloseButton && !isMobile && (
           <Close
             data-slot="sheet-close"
             className="absolute top-4 right-4 rounded-full opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"

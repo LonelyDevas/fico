@@ -106,7 +106,7 @@ export function TransactionsPage() {
   const { data: apiResponse, isLoading, error, refetch } = useListTransactions(apiParams);
   // Fetch summary stats
   // Totals for the selected period (and wallet), the same range the list above is showing.
-  const { data: summaryData } = useQuickStats({ period: filters.dateRange ?? 'month', walletId: filters.walletId || undefined });
+  const { data: summaryData, isLoading: summaryLoading } = useQuickStats({ period: filters.dateRange ?? 'month', walletId: filters.walletId || undefined });
   const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction()
   const { mutate: updateTransaction, isPending: isUpdatingTransaction } = useUpdateTransaction()
   
@@ -250,7 +250,7 @@ export function TransactionsPage() {
           </div>
 
           <div className="mt-5">
-            <TransactionStats stats={stats} isLoading={isLoading && page === 0} periodPhrase={PERIOD_PHRASE[filters.dateRange ?? 'month']} />
+            <TransactionStats stats={stats} isLoading={summaryLoading} periodPhrase={PERIOD_PHRASE[filters.dateRange ?? 'month']} />
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">

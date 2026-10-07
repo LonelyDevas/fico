@@ -12,6 +12,7 @@ import { RecordPaymentSheet } from '@/components/page/debts/record-payment-sheet
 import { useArchiveObligation, useListObligations, useObligationSummary } from '@/queries/user/obligation/obligations'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Obligation, ObligationDirection } from '@/types/obligation'
 
 type Tab = 'all' | ObligationDirection
@@ -30,7 +31,7 @@ export default function DebtsPage() {
   const [paying, setPaying] = useState<Obligation | null>(null)
 
   const { data: listResponse, isLoading } = useListObligations({ limit: '100', ...(tab !== 'all' ? { direction: tab } : {}) })
-  const { data: summaryResponse } = useObligationSummary()
+  const { data: summaryResponse, isLoading: summaryLoading } = useObligationSummary()
   const { mutate: archive } = useArchiveObligation()
 
   const items: Obligation[] = useMemo(() => {
@@ -41,6 +42,20 @@ export default function DebtsPage() {
 
   const open = items.filter((o) => o.status !== 'settled')
   const settled = items.filter((o) => o.status === 'settled')
+
+  const debtors = useMemo(() => {
+    const byPerson = new Map<string, { name: string; remaining: number; count: number; contact?: string }>()
+    for (const o of items) {
+      if (o.direction !== 'lending' || o.status === 'settled' || o.status === 'archived') continue
+      const name = o.counterparty?.trim() || 'Unknown'
+      const key = name.toLowerCase()
+      const entry = byPerson.get(key) ?? { name, remaining: 0, count: 0, contact: o.counterpartyContact }
+      entry.remaining += Number(o.remainingBalance) || 0
+      entry.count += 1
+      byPerson.set(key, entry)
+    }
+    return [...byPerson.values()].sort((a, b) => b.remaining - a.remaining)
+  }, [items])
 
   const summary = summaryResponse?.data as any
   const owe = Number(summary?.debt?.totalRemaining ?? 0)
@@ -87,7 +102,14 @@ export default function DebtsPage() {
                   <Sparkles className="h-3.5 w-3.5" />
                   Fico&apos;s take
                 </p>
-                <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+                {summaryLoading ? (
+                  <div className="mt-2 space-y-2" aria-label="Loading">
+                    <Skeleton className="h-3.5 w-full" />
+                    <Skeleton className="h-3.5 w-2/3" />
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+                )}
                 <span aria-hidden="true" className="absolute -right-3.5 bottom-6 h-3.5 w-3.5 rounded-full border border-border bg-card shadow-sm sm:bottom-8" />
                 <span aria-hidden="true" className="absolute -right-[1.65rem] bottom-4 h-2 w-2 rounded-full border border-border bg-card shadow-sm sm:bottom-6" />
               </div>
@@ -117,16 +139,20 @@ export default function DebtsPage() {
                     Add
                   </button>
                 </div>
-                <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">
-                  {net > 0 ? '+' : ''}
-                  {money(net)}
-                </p>
+                {summaryLoading ? (
+                  <Skeleton className="mt-2 h-10 w-52 bg-white/20 sm:h-12" />
+                ) : (
+                  <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">
+                    {net > 0 ? '+' : ''}
+                    {money(net)}
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-white/75">What you are owed minus what you owe</p>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   {tiles.map((tile) => (
                     <div key={tile.label} className="rounded-2xl bg-white/12 p-3">
                       <p className="text-xs font-medium text-white/75">{tile.label}</p>
-                      <p className="mt-1 truncate text-base font-semibold tabular-nums sm:text-lg">{money(tile.value)}</p>
+                      <div className="mt-1 truncate text-base font-semibold tabular-nums sm:text-lg">{summaryLoading ? <Skeleton className="h-6 w-20 bg-white/20" /> : money(tile.value)}</div>
                     </div>
                   ))}
                 </div>
@@ -147,6 +173,26 @@ export default function DebtsPage() {
               </button>
             ))}
           </div>
+
+          {tab === 'lending' && debtors.length > 0 && (
+            <section aria-label="Who owes you" className="mt-4 rounded-3xl border border-border bg-card p-4 shadow-ios">
+              <h2 className="mb-2 font-heading text-sm font-semibold text-muted-foreground">Who owes you</h2>
+              <ul className="divide-y divide-border">
+                {debtors.map((d) => (
+                  <li key={d.name} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{d.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {d.count} loan{d.count === 1 ? '' : 's'}
+                        {d.contact ? ` · ${d.contact}` : ''}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums text-success">{money(d.remaining)}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <div className="mt-4">
             {isLoading ? (

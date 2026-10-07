@@ -8,6 +8,7 @@ import { InstitutionLogo } from '@/components/ui/institution-logo'
 import { useCreateWallet, useUpdateWallet, useSetBalance } from '@/queries/user/wallet/wallets'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { celebrate } from '@/store/celebration-store'
 import {
   getInstitution,
   INSTITUTION_KIND_LABEL,
@@ -221,7 +222,17 @@ export function CreateWalletModal({ open, onClose, onSuccess, wallet }: CreateWa
     }
 
     const create: CreateWalletData = { ...common, balance, currency }
-    createWallet(create, { onSuccess: () => finish('Wallet created') })
+    createWallet(create, {
+      onSuccess: () => {
+        celebrate({
+          kind: 'check',
+          title: 'Wallet created',
+          message: `${name.trim()} is ready. Add a transaction to start tracking it.`,
+        })
+        onClose()
+        onSuccess?.()
+      },
+    })
   }
 
   const previewName = name.trim() || chosen?.short || 'New wallet'
@@ -241,7 +252,7 @@ export function CreateWalletModal({ open, onClose, onSuccess, wallet }: CreateWa
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
+              className="max-md:hidden rounded-full p-2 text-muted-foreground hover:bg-secondary hover:text-foreground"
             >
               <X className="h-5 w-5" />
             </button>

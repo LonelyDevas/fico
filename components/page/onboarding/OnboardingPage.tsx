@@ -101,8 +101,8 @@ export function OnboardingPage() {
           {step === 0 && (
             <div className="flex flex-col items-center text-center animate-fade-in">
               <div className="relative mb-7">
-                <div className="w-24 h-24 rounded-[28px] bg-white dark:bg-zinc-800 shadow-xl flex items-center justify-center">
-                  <Image src="/FicoLogoTrans1.png" alt="Fico" width={72} height={72} className="object-contain" />
+                <div className="w-24 h-24 rounded-[28px] overflow-hidden shadow-xl flex items-center justify-center">
+                  <Image src="/icon-512.png" alt="Fico" width={96} height={96} className="h-24 w-24 object-cover" />
                 </div>
                 <div className="absolute -bottom-1.5 -right-1.5 w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg">
                   <Sparkles className="w-4 h-4 text-white" />

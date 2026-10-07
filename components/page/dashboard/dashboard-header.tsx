@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useHistory } from 'react-router-dom'
+import { useRootNavigate } from '@/utils/use-root-navigate'
 import { Moon, Sun, Search, Bell, User, MoreVertical, Home, TrendingUp, BarChart3 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useAuthStore } from '@/store/auth-store'
@@ -10,6 +11,7 @@ import { useLogout } from '@/queries/auth/auth'
 export function DashboardHeader() {
   const { theme, setTheme } = useTheme()
   const history = useHistory()
+  const rootNavigate = useRootNavigate()
   const clearAuth = useAuthStore((state) => state.clearAuth)
   const { mutate: logout } = useLogout()
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -18,7 +20,7 @@ export function DashboardHeader() {
     logout(undefined, {
       onSettled: () => {
         clearAuth()
-        history.push('/signin')
+        rootNavigate('/signin', { clearCache: true })
       },
     })
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useHistory } from 'react-router-dom'
+import { useRootNavigate } from '@/utils/use-root-navigate'
 import { User, Settings as SettingsIcon, Moon, Sun, LogOut } from 'lucide-react'
 import { useThemeStore } from '@/store/theme-store'
 import { useAuthStore } from '@/store/auth-store'
@@ -21,6 +22,7 @@ interface AccountSheetProps {
 /** Account menu for small screens: profile, settings, theme and sign out. */
 export function AccountSheet({ open, onOpenChange }: AccountSheetProps) {
   const history = useHistory()
+  const rootNavigate = useRootNavigate()
   const { isDarkMode, toggleDarkMode } = useThemeStore()
   const clearAuth = useAuthStore((state) => state.clearAuth)
   const { mutate: logout } = useLogout()
@@ -35,7 +37,7 @@ export function AccountSheet({ open, onOpenChange }: AccountSheetProps) {
       onSettled: () => {
         clearAuth()
         onOpenChange(false)
-        history.push('/signin')
+        rootNavigate('/signin', { clearCache: true })
       },
     })
   }

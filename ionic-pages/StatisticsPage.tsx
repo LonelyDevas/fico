@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, ChevronLeft, ChartPie, TrendingDown, Banknote } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, ChartPie, TrendingDown, Banknote } from 'lucide-react'
 import { IonContent, IonPage } from '@ionic/react'
 import { useHistory } from 'react-router-dom'
 import { useMemo } from 'react'
@@ -11,20 +11,29 @@ import { CategoryDistributionCard } from '@/components/page/statistics/category-
 import { useTopCategories, useQuickStats } from '@/queries/user/transaction/transaction'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { describePeriod, isShiftablePeriod } from '@/queries/user/transaction/period-range'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 type PeriodType = 'today' | 'week' | 'month' | 'year' | 'all'
 
 export default function StatisticsPage() {
   const history = useHistory()
-  const [period, setPeriod] = useState<PeriodType>('month')
+  const [period, setPeriodState] = useState<PeriodType>('month')
+  // 0 = current period, -1 = the one before, and so on without limit.
+  const [offset, setOffset] = useState(0)
+  const setPeriod = (next: PeriodType) => {
+    setPeriodState(next)
+    setOffset(0)
+  }
+  const canStep = isShiftablePeriod(period)
   const [walletId, setWalletId] = useState<string>('')
   const { data: walletsResponse } = useListWallets()
   const { currency, hideAmountsOnOpen } = useSettingsStore()
 
-  const { data: topCategoriesResponse } = useTopCategories({ period, walletId: walletId || undefined, type: 'expense' })
-  const { data: quickStatsResponse } = useQuickStats({ period, walletId: walletId || undefined })
+  const { data: topCategoriesResponse, isLoading: topLoading } = useTopCategories({ period, offset, walletId: walletId || undefined, type: 'expense' })
+  const { data: quickStatsResponse, isLoading: statsLoading } = useQuickStats({ period, offset, walletId: walletId || undefined })
 
   const periodOptions: { label: string; value: PeriodType }[] = [
     { label: 'Today', value: 'today' },
@@ -79,23 +88,53 @@ export default function StatisticsPage() {
               <div className="grid grid-cols-2 gap-3 lg:self-start">
                 <div className="min-w-0 rounded-2xl border border-border bg-background/70 px-4 py-3 shadow-ios">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Total Amount</p>
-                  <p className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{formatMoney(categorySummary.totalAmount, currency, hideAmountsOnOpen)}</p>
+                  <div className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{topLoading ? <Skeleton className="h-6 w-24" /> : formatMoney(categorySummary.totalAmount, currency, hideAmountsOnOpen)}</div>
                 </div>
                 <div className="min-w-0 rounded-2xl border border-border bg-background/70 px-4 py-3 shadow-ios">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Transactions</p>
-                  <p className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{categorySummary.transactionCount}</p>
+                  <div className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{topLoading ? <Skeleton className="h-6 w-12" /> : categorySummary.transactionCount}</div>
                 </div>
                 <div className="min-w-0 rounded-2xl border border-border bg-background/70 px-4 py-3 shadow-ios">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Top Category</p>
-                  <p className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{categorySummary.topCategoryName}</p>
+                  <div className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{topLoading ? <Skeleton className="h-6 w-28" /> : categorySummary.topCategoryName}</div>
                 </div>
                 <div className="min-w-0 rounded-2xl border border-border bg-background/70 px-4 py-3 shadow-ios">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Top Share</p>
-                  <p className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{formatMoney(categorySummary.topCategoryAmount, currency, hideAmountsOnOpen)}</p>
+                  <div className="mt-2 break-words text-base font-black leading-tight text-foreground sm:text-lg">{topLoading ? <Skeleton className="h-6 w-24" /> : formatMoney(categorySummary.topCategoryAmount, currency, hideAmountsOnOpen)}</div>
                 </div>
               </div>
             </div>
           </section>
+
+          {canStep && (
+            <div className="mb-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-card px-2 py-2">
+              <button
+                type="button"
+                onClick={() => setOffset((o) => o - 1)}
+                aria-label="Previous period"
+                className="rounded-full p-2 text-foreground transition-colors hover:bg-secondary"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="min-w-0 text-center">
+                <p className="truncate text-sm font-semibold text-foreground">{describePeriod(period, offset)}</p>
+                {offset !== 0 && (
+                  <button type="button" onClick={() => setOffset(0)} className="text-xs font-medium text-primary hover:underline">
+                    Back to current
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setOffset((o) => Math.min(0, o + 1))}
+                disabled={offset === 0}
+                aria-label="Next period"
+                className="rounded-full p-2 text-foreground transition-colors hover:bg-secondary disabled:opacity-30 disabled:hover:bg-transparent"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          )}
 
           <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -168,7 +207,7 @@ export default function StatisticsPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)]">
-            <CategoryDistributionCard period={period} walletId={walletId || undefined} />
+            <CategoryDistributionCard period={period} offset={offset} walletId={walletId || undefined} />
 
             <div className="space-y-4">
               <div className="rounded-2xl border border-border bg-card p-5">
@@ -181,27 +220,27 @@ export default function StatisticsPage() {
                     <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Top Category</p>
                     <div className="mt-2 flex items-end justify-between gap-3">
                       <div>
-                        <p className="text-base font-bold text-foreground">{categorySummary.topCategoryName}</p>
+                        <div className="text-base font-bold text-foreground">{topLoading ? <Skeleton className="h-5 w-28" /> : categorySummary.topCategoryName}</div>
                         <p className="text-xs text-muted-foreground">Largest share in the selected period</p>
                       </div>
-                      <p className="text-sm font-bold text-foreground">{formatMoney(categorySummary.topCategoryAmount, currency, hideAmountsOnOpen)}</p>
+                      <div className="text-sm font-bold text-foreground">{topLoading ? <Skeleton className="h-5 w-20" /> : formatMoney(categorySummary.topCategoryAmount, currency, hideAmountsOnOpen)}</div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-secondary/30 px-4 py-3">
                     <span className="text-sm text-muted-foreground">Expenses</span>
-                    <span className="text-sm font-bold text-foreground">{formatMoney(expenseValue, currency, hideAmountsOnOpen)}</span>
+                    {statsLoading ? <Skeleton className="h-5 w-20" /> : <span className="text-sm font-bold text-foreground">{formatMoney(expenseValue, currency, hideAmountsOnOpen)}</span>}
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-secondary/30 px-4 py-3">
                     <span className="text-sm text-muted-foreground">Income</span>
-                    <span className="text-sm font-bold text-foreground">{formatMoney(incomeValue, currency, hideAmountsOnOpen)}</span>
+                    {statsLoading ? <Skeleton className="h-5 w-20" /> : <span className="text-sm font-bold text-foreground">{formatMoney(incomeValue, currency, hideAmountsOnOpen)}</span>}
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-secondary/30 px-4 py-3">
                     <span className="text-sm text-muted-foreground">Transfers</span>
-                    <span className="text-sm font-bold text-foreground">{formatMoney(transferValue, currency, hideAmountsOnOpen)}</span>
+                    {statsLoading ? <Skeleton className="h-5 w-20" /> : <span className="text-sm font-bold text-foreground">{formatMoney(transferValue, currency, hideAmountsOnOpen)}</span>}
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-secondary/30 px-4 py-3">
                     <span className="text-sm text-muted-foreground">Transactions</span>
-                    <span className="text-sm font-bold text-foreground">{categorySummary.transactionCount}</span>
+                    {topLoading ? <Skeleton className="h-5 w-10" /> : <span className="text-sm font-bold text-foreground">{categorySummary.transactionCount}</span>}
                   </div>
                 </div>
               </div>
@@ -222,10 +261,10 @@ export default function StatisticsPage() {
 
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2 min-h-[280px]">
-              <SpendingChart period={period} walletId={walletId || undefined} />
+              <SpendingChart period={period} offset={offset} walletId={walletId || undefined} />
             </div>
             <div className="lg:col-span-1">
-              <PeriodSummaryCard period={period} walletId={walletId || undefined} />
+              <PeriodSummaryCard period={period} offset={offset} walletId={walletId || undefined} />
             </div>
           </div>
         </main>

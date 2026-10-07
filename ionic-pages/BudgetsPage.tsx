@@ -13,8 +13,8 @@ export default function BudgetsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   
-  const { data: summaryResponse } = useBudgetSummary()
-  const { data: performanceResponse } = useBudgetPerformance()
+  const { data: summaryResponse, isLoading: summaryLoading } = useBudgetSummary()
+  const { data: performanceResponse, isLoading: performanceLoading } = useBudgetPerformance()
   const { currency } = useSettingsStore()
 
   const summary = useMemo(() => {
@@ -50,6 +50,7 @@ export default function BudgetsPage() {
             currency={summary.currency}
             burnRate={summary.burnRate}
             message={summary.performanceMessage}
+            loading={summaryLoading || performanceLoading}
           />
 
           <BudgetList />

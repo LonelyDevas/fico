@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useHistory, useLocation, Link } from 'react-router-dom'
+import { useRootNavigate } from '@/utils/use-root-navigate'
 import {
   Moon,
   Sun,
@@ -23,6 +24,7 @@ import { UserAvatar } from '@/components/ui/user-avatar'
 
 export default function DNavbar() {
   const history = useHistory()
+  const rootNavigate = useRootNavigate()
   const location = useLocation()
   const { isDarkMode, toggleDarkMode } = useThemeStore()
   const user = useUser()
@@ -44,7 +46,8 @@ export default function DNavbar() {
     logout(undefined, {
       onSettled: () => {
         clearAuth()
-        go('/signin')
+        setShowUserMenu(false)
+        rootNavigate('/signin', { clearCache: true })
       },
     })
   }
@@ -64,8 +67,8 @@ export default function DNavbar() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
             ) : (
-              <div className="w-8 h-8 rounded-xl overflow-hidden bg-card flex items-center justify-center shrink-0">
-                <img src="/FicoLogoTrans1.png" alt="Fico logo" className="w-full h-full object-contain" />
+              <div className="w-8 h-8 rounded-[10px] overflow-hidden flex items-center justify-center shrink-0">
+                <img src="/icon-512.png" alt="Fico logo" className="w-full h-full object-cover" />
               </div>
             )}
             <span className="text-base font-bold text-foreground truncate">{pageTitle}</span>
@@ -97,8 +100,8 @@ export default function DNavbar() {
           <div className="flex items-center justify-between h-16 gap-3">
             {/* Logo / brand */}
             <div className="flex items-center gap-2.5 flex-shrink-0">
-              <div className="w-10 h-10 rounded-xl overflow-hidden bg-card flex items-center justify-center">
-                <img src="/FicoLogoTrans1.png" alt="Fico logo" className="w-full h-full object-contain" />
+              <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center">
+                <img src="/icon-512.png" alt="Fico logo" className="w-full h-full object-cover" />
               </div>
               <span className="text-lg font-bold text-foreground">Fico</span>
             </div>

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="1024" height="1024">
+  <defs>
+    <clipPath id="icon"><rect width="512" height="512" rx="116"/></clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14E5D8"/>
+      <stop offset="1" stop-color="#00B8AD"/>
+    </linearGradient>
+    <linearGradient id="head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1A7BE0"/>
+      <stop offset="1" stop-color="#0066CC"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#icon)">
+    <rect width="512" height="512" fill="url(#bg)"/>
+
+    <!-- tail fan rising behind the head, eye-spot feathers -->
+    <g>
+      <g fill="#009C93" opacity=".55">
+        <circle cx="256" cy="372" r="250"/>
+      </g>
+      <g fill="#0066CC">
+        <circle cx="86" cy="196" r="46"/><circle cx="150" cy="108" r="46"/><circle cx="256" cy="74" r="46"/>
+        <circle cx="362" cy="108" r="46"/><circle cx="426" cy="196" r="46"/>
+      </g>
+      <g fill="#00D9CC">
+        <circle cx="86" cy="196" r="28"/><circle cx="150" cy="108" r="28"/><circle cx="256" cy="74" r="28"/>
+        <circle cx="362" cy="108" r="28"/><circle cx="426" cy="196" r="28"/>
+      </g>
+      <g fill="#2ECC71">
+        <circle cx="86" cy="196" r="12"/><circle cx="150" cy="108" r="12"/><circle cx="256" cy="74" r="12"/>
+        <circle cx="362" cy="108" r="12"/><circle cx="426" cy="196" r="12"/>
+      </g>
+    </g>
+
+    <!-- head peeking over the bottom edge -->
+    <circle cx="256" cy="448" r="190" fill="url(#head)"/>
+    <!-- crest -->
+    <g stroke="#0066CC" stroke-width="14" stroke-linecap="round" fill="none">
+      <path d="M256 268V226"/><path d="M222 274C212 252 204 238 196 224"/><path d="M290 274C300 252 308 238 316 224"/>
+    </g>
+    <g fill="#00D9CC"><circle cx="256" cy="212" r="17"/><circle cx="190" cy="212" r="15"/><circle cx="322" cy="212" r="15"/></g>
+    <g fill="#0066CC"><circle cx="256" cy="212" r="7"/><circle cx="190" cy="212" r="6"/><circle cx="322" cy="212" r="6"/></g>
+
+    <!-- big eyes looking up -->
+    <g>
+      <ellipse cx="190" cy="372" rx="52" ry="62" fill="#fff"/>
+      <ellipse cx="322" cy="372" rx="52" ry="62" fill="#fff"/>
+      <ellipse cx="200" cy="356" rx="30" ry="36" fill="#0F1419"/>
+      <ellipse cx="332" cy="356" rx="30" ry="36" fill="#0F1419"/>
+      <circle cx="211" cy="342" r="10" fill="#fff"/>
+      <circle cx="343" cy="342" r="10" fill="#fff"/>
+    </g>
+
+    <!-- beak, tucked at the bottom edge -->
+    <path d="M232 442h48l-24 34z" fill="#E8A33D" stroke="#E8A33D" stroke-width="14" stroke-linejoin="round"/>
+  </g>
+</svg>

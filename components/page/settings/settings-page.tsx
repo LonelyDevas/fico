@@ -1,1 +1,1 @@
-export { SettingsPageContent } from './settings-sections'
+export { SettingsPageContent } from './settings-content'

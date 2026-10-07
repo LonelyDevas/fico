@@ -2,6 +2,7 @@
 
 import { Eye, EyeOff, Plus, Sparkles } from 'lucide-react'
 import { PeacockMascot } from '@/components/peacock-mascot'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface MoneyOverviewCardProps {
   /** Fico's thought, shown in the bubble above the card. */
@@ -18,6 +19,8 @@ interface MoneyOverviewCardProps {
   showAmounts: boolean
   onToggleAmounts: () => void
   onAdd: () => void
+  /** Wallets are still loading: show placeholders instead of zeros. */
+  loading?: boolean
 }
 
 /** Concentric eye-spot rings, the same motif as the peacock's tail feathers. */
@@ -49,6 +52,7 @@ export function MoneyOverviewCard({
   showAmounts,
   onToggleAmounts,
   onAdd,
+  loading,
 }: MoneyOverviewCardProps) {
   const tiles = [
     { label: 'Assets', value: assets, show: true },
@@ -64,7 +68,14 @@ export function MoneyOverviewCard({
             <Sparkles className="h-3.5 w-3.5" />
             Fico noticed
           </p>
-          <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+          {loading ? (
+            <div className="mt-2 space-y-2" aria-label="Loading">
+              <Skeleton className="h-3.5 w-full" />
+              <Skeleton className="h-3.5 w-3/4" />
+            </div>
+          ) : (
+            <p className="mt-1.5 text-[15px] leading-relaxed text-foreground">{note}</p>
+          )}
           <span aria-hidden="true" className="absolute -right-3.5 bottom-6 h-3.5 w-3.5 rounded-full border border-border bg-card shadow-sm sm:bottom-8" />
           <span aria-hidden="true" className="absolute -right-[1.65rem] bottom-4 h-2 w-2 rounded-full border border-border bg-card shadow-sm sm:bottom-6" />
         </div>
@@ -95,10 +106,21 @@ export function MoneyOverviewCard({
               New wallet
             </button>
           </div>
-          <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{netWorth}</p>
+          {loading ? (
+            <Skeleton className="mt-2 h-10 w-52 bg-white/20 sm:h-12" />
+          ) : (
+            <p className="mt-1 font-heading text-4xl font-semibold tracking-tight tabular-nums sm:text-5xl">{netWorth}</p>
+          )}
 
-          <div className={`mt-4 grid gap-3 ${tiles.length === 3 ? 'grid-cols-3' : tiles.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {tiles.map((tile) => (
+          <div className={`mt-4 grid gap-3 ${loading ? 'grid-cols-2' : tiles.length === 3 ? 'grid-cols-3' : tiles.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {loading
+              ? [0, 1].map((i) => (
+                  <div key={i} className="rounded-2xl bg-white/12 p-3">
+                    <Skeleton className="h-3 w-16 bg-white/20" />
+                    <Skeleton className="mt-2 h-6 w-20 bg-white/20" />
+                  </div>
+                ))
+              : tiles.map((tile) => (
               <div key={tile.label} className="rounded-2xl bg-white/12 p-3">
                 <p className="text-xs font-medium text-white/75">{tile.label}</p>
                 <p className="mt-1 truncate text-base font-semibold tabular-nums sm:text-lg">{tile.value}</p>

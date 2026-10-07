@@ -78,7 +78,7 @@ export function MarkPaidDialog({ open, bill, onOpenChange, onConfirm, isProcessi
           value={paidDate}
           max={new Date().toISOString().split('T')[0]}
           onChange={(e) => setPaidDate(e.target.value)}
-          className="bg-secondary/30"
+          className="block w-full min-w-0 max-w-full appearance-none bg-secondary/30"
         />
         <p className="text-xs text-muted-foreground">
           Defaults to today. Change this if you paid earlier and are registering it now.
@@ -99,7 +99,7 @@ export function MarkPaidDialog({ open, bill, onOpenChange, onConfirm, isProcessi
             placeholder="0.00"
             value={absenceDeduction ?? ''}
             onChange={(e) => setAbsenceDeduction(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-            className="pl-8 bg-secondary/30"
+            className="pl-14 bg-secondary/30"
           />
         </div>
         <p className="text-xs text-muted-foreground">Update or add absence deduction for this period if applicable.</p>

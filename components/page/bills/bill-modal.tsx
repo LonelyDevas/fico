@@ -184,7 +184,7 @@ export function BillModal({ open, onClose, onSuccess, bill }: BillModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-all"
+            className="max-md:hidden p-2 text-muted-foreground hover:text-foreground hover:bg-secondary rounded-full transition-all"
           >
             <X className="w-5 h-5" />
           </button>
@@ -271,7 +271,7 @@ export function BillModal({ open, onClose, onSuccess, bill }: BillModalProps) {
                   <SelectValue placeholder="Select a wallet" />
                 </SelectTrigger>
                 <SelectContent>
-                  {wallets.map((w: any) => (
+                  {wallets.filter((w: any) => formData.type === 'income' || w.type !== 'savings').map((w: any) => (
                     <SelectItem key={w._id || w.id} value={String(w._id || w.id)}>
                       {w.name}
                       {w.type === 'credit_card' ? ' (credit card)' : ''}
