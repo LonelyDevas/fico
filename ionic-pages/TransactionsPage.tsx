@@ -14,6 +14,7 @@ import { CreateTransactionModal } from '@/components/page/transaction/create-tra
 import { TransactionImportModal } from '@/components/page/transaction/transaction-import-modal'
 import { DeleteTransactionDialog } from '@/components/page/transaction/delete-transaction-dialog'
 import toast from 'react-hot-toast'
+import { exportTransactionsCsv } from '@/utils/export-data'
 
 // Helper function to convert filter state to API params
 const convertFilterToParams = (filters: FilterState): ListTransactionsParams => {
@@ -66,6 +67,7 @@ export function TransactionsPage() {
 
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS)
   const [showFilters, setShowFilters] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<TransactionItem | null>(null)
   const [sheetEditingTransaction, setSheetEditingTransaction] = useState<TransactionItem | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
@@ -232,11 +234,22 @@ export function TransactionsPage() {
             <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
-                onClick={() => console.warn('Export not implemented')}
+                disabled={exporting}
+                onClick={async () => {
+                  setExporting(true)
+                  try {
+                    const count = await exportTransactionsCsv()
+                    toast.success(count ? `Exported ${count} transactions` : 'Nothing to export yet')
+                  } catch {
+                    toast.error('Could not export. Please try again.')
+                  } finally {
+                    setExporting(false)
+                  }
+                }}
                 className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-semibold text-foreground shadow-ios hover:border-primary/50"
               >
                 <Download className="h-4 w-4 text-primary" />
-                <span className="hidden sm:inline">Export</span>
+                <span className="hidden sm:inline">{exporting ? 'Exporting...' : 'Export'}</span>
               </button>
               <button
                 type="button"

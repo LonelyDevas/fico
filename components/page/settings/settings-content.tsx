@@ -14,6 +14,7 @@ import { useRootNavigate } from '@/utils/use-root-navigate'
 import { useThemeStore } from '@/store/theme-store'
 import { formatMoney } from '@/utils/formatter'
 import { cn } from '@/lib/utils'
+import { saveFile } from '@/utils/export-data'
 import { currentPushSubscription, disablePush, enablePush, pushSupport, sendTestPush, type PushSupport } from '@/utils/push'
 import type { CurrencyCode, DateFormat, LandingPage } from '@/types/settings'
 
@@ -214,7 +215,7 @@ function EyeSpots() {
 }
 
 const PUSH_HINTS: Record<PushSupport, string> = {
-  ready: 'Get a heads up on this device when bills are overdue or due soon.',
+  ready: 'Bill reminders, plus a spending update every few hours (8am, 2pm and 8pm).',
   'needs-install': 'On iPhone, add Fico to your Home Screen first, then open it from there to turn this on.',
   unsupported: 'This browser cannot show notifications.',
   unconfigured: 'Reminders are not set up on the server yet.',
@@ -238,11 +239,11 @@ function BillReminderRow() {
         await enablePush()
         setEnabled(true)
         await sendTestPush().catch(() => {})
-        toast.success('Bill reminders are on')
+        toast.success('Notifications are on')
       } else {
         await disablePush()
         setEnabled(false)
-        toast.success('Bill reminders are off')
+        toast.success('Notifications are off')
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not change reminders')
@@ -256,10 +257,10 @@ function BillReminderRow() {
     <Row
       icon={<Bell className="size-[18px]" />}
       tone="primary"
-      label="Bill reminders"
+      label="Bill and spending alerts"
       hint={PUSH_HINTS[support]}
       onRowClick={usable ? () => change(!enabled) : undefined}
-      control={<Toggle checked={enabled} onChange={(next) => usable && change(next)} label="Bill reminders" />}
+      control={<Toggle checked={enabled} onChange={(next) => usable && change(next)} label="Bill and spending alerts" />}
     />
   )
 }
@@ -312,14 +313,7 @@ export function SettingsPageContent() {
 
   const downloadBackup = () => {
     const { currency, hideAmountsOnOpen, compactLayout, defaultLandingPage, dateFormat } = useSettingsStore.getState()
-    const blob = new Blob([JSON.stringify({ currency, hideAmountsOnOpen, compactLayout, defaultLandingPage, dateFormat }, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'fico-settings-backup.json'
-    link.click()
-    URL.revokeObjectURL(url)
-    toast.success('Backup saved')
+    void saveFile('fico-settings-backup.json', JSON.stringify({ currency, hideAmountsOnOpen, compactLayout, defaultLandingPage, dateFormat }, null, 2), 'application/json').then(() => toast.success('Backup saved'))
   }
 
   const handleSignOut = () => {
