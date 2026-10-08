@@ -11,6 +11,12 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     background_color: '#FFFFFF',
     theme_color: '#0066CC',
+    shortcuts: [
+      { name: 'Add expense', short_name: 'Expense', url: '/dashboard?add=expense', icons: [{ src: '/icon-512.png', sizes: '512x512' }] },
+      { name: 'Add income', short_name: 'Income', url: '/dashboard?add=income', icons: [{ src: '/icon-512.png', sizes: '512x512' }] },
+      { name: 'Transfer', short_name: 'Transfer', url: '/dashboard?add=transfer', icons: [{ src: '/icon-512.png', sizes: '512x512' }] },
+      { name: 'Pay a bill', short_name: 'Bills', url: '/bills', icons: [{ src: '/icon-512.png', sizes: '512x512' }] },
+    ],
     icons: [
       {
         src: '/icon-512.png',

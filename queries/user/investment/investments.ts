@@ -37,6 +37,13 @@ const createInvestment = async (data: CreateInvestmentData) => {
       p_tags: data.tags ?? [],
     });
     if (error) throw error;
+    if (data.coinId && row?.id) {
+      const { error: coinError } = await supabase
+        .from('investments')
+        .update({ coin_id: data.coinId, coin_symbol: data.coinSymbol ?? null, quantity: data.quantity ?? null })
+        .eq('id', row.id);
+      if (coinError) throw coinError;
+    }
     return { message: 'success', data: toCamelCase(row) };
   }
   const response = await axiosInstance.post("/investment/create", data);
@@ -114,6 +121,7 @@ const updateInvestment = async (data: UpdateInvestmentData) => {
         notes: rest.notes,
         tags: rest.tags,
         status: rest.status,
+        ...(rest.coinId !== undefined ? { coin_id: rest.coinId, coin_symbol: rest.coinSymbol ?? null, quantity: rest.quantity ?? null } : {}),
       })
       .eq('id', id);
     if (error) throw error;

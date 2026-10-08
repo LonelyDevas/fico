@@ -31,8 +31,18 @@ const createCategory = async (data: CreateCategoryData) => {
   return response.data;
 };
 
+// Categories show up in forms and budget cards all over the app, so any change refreshes every list
+// that reads them (matched by prefix, whatever parameters each screen used).
+const CATEGORY_KEYS = ['categories', 'category-summary', 'budgets', 'current-budgets'];
+const useRefreshCategories = () => {
+  const queryClient = useQueryClient();
+  return () => Promise.all(CATEGORY_KEYS.map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
+};
+
 export const useCreateCategory = () => {
+  const refreshCategories = useRefreshCategories();
   return useMutation({
+    onSuccess: refreshCategories,
     mutationFn: (data: CreateCategoryData) => createCategory(data),
     onError: (error) => {
       handleApiError(error);
@@ -90,7 +100,9 @@ const updateCategory = async (data: UpdateCategoryData) => {
 };
 
 export const useUpdateCategory = () => {
+  const refreshCategories = useRefreshCategories();
   return useMutation({
+    onSuccess: refreshCategories,
     mutationFn: (data: UpdateCategoryData) => updateCategory(data),
     onError: (error) => {
       handleApiError(error);
@@ -110,7 +122,9 @@ const archiveCategory = async (data: ArchiveCategoryData) => {
 };
 
 export const useArchiveCategory = () => {
+  const refreshCategories = useRefreshCategories();
   return useMutation({
+    onSuccess: refreshCategories,
     mutationFn: (data: ArchiveCategoryData) => archiveCategory(data),
     onError: (error) => {
       handleApiError(error);

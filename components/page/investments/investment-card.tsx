@@ -7,24 +7,28 @@ import { investmentType } from '@/components/page/investments/investment-meta'
 import type { InvestmentAction } from '@/components/page/investments/investment-action-sheet'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
+import { coinLabel } from '@/utils/crypto-prices'
+import type { LiveHolding } from '@/queries/crypto/prices'
 import type { Investment } from '@/types/investment'
 
 interface InvestmentCardProps {
   investment: Investment
+  /** Live price info, when this is a crypto holding with a quantity. */
+  live?: LiveHolding
   hideAmounts: boolean
   onAction: (action: InvestmentAction, investment: Investment) => void
   onEdit: (investment: Investment) => void
   onArchive: (investment: Investment) => void
 }
 
-export function InvestmentCard({ investment, hideAmounts, onAction, onEdit, onArchive }: InvestmentCardProps) {
+export function InvestmentCard({ investment, live, hideAmounts, onAction, onEdit, onArchive }: InvestmentCardProps) {
   const { currency } = useSettingsStore()
   const [menu, setMenu] = useState(false)
   const meta = investmentType(investment.type)
   const money = (value: number) => formatMoney(value, investment.currency || currency, hideAmounts)
 
   const principal = Number(investment.principalAmount) || 0
-  const value = Number(investment.currentValue) || 0
+  const value = live ? live.value : Number(investment.currentValue) || 0
   const dividends = Number(investment.dividendsReceived) || 0
   const gain = value - principal + dividends
   const gainPct = principal > 0 ? (gain / principal) * 100 : 0
@@ -69,7 +73,9 @@ export function InvestmentCard({ investment, hideAmounts, onAction, onEdit, onAr
 
       <div className="mt-4 flex items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{sold ? 'Sold for' : 'Worth now'}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {sold ? 'Sold for' : live ? 'Worth now · live' : 'Worth now'}
+          </p>
           <p className="font-heading text-2xl font-bold tabular-nums text-foreground">{money(value)}</p>
         </div>
         <p className={`rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ${up ? 'bg-success/15 text-success' : 'bg-destructive/10 text-destructive'}`}>
@@ -77,6 +83,19 @@ export function InvestmentCard({ investment, hideAmounts, onAction, onEdit, onAr
           {Math.abs(gainPct).toFixed(1)}%
         </p>
       </div>
+
+      {live && investment.coinId && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {Number(investment.quantity)} {coinLabel(investment.coinId, investment.coinSymbol)} at {money(live.price)}
+          {live.change24h != null && (
+            <span className={live.change24h >= 0 ? 'text-success' : 'text-destructive'}>
+              {' '}
+              · {live.change24h >= 0 ? '+' : ''}
+              {live.change24h.toFixed(2)}% today
+            </span>
+          )}
+        </p>
+      )}
 
       <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
         <div className="rounded-2xl bg-secondary/60 px-3 py-2">

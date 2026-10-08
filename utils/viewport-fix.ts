@@ -81,7 +81,12 @@ function installAppHeight(): () => void {
     (navigator as Navigator & { standalone?: boolean }).standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches
 
-  if (!standalone) {
+  // iPhone/iPad only. On Android, screen.height includes the system status and gesture bars, so
+  // sizing the app to it would push the bottom tab bar off the visible screen.
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+  if (!standalone || !isIOS) {
     root.removeAttribute('data-app-h')
     root.style.removeProperty('--app-h')
     return () => {}

@@ -15,6 +15,14 @@ import {
 
 const isSupabase = () => process.env.NEXT_PUBLIC_BACKEND === 'supabase';
 
+// Every budget screen reads one of these. Matching by prefix means a list loaded with any
+// parameters is refreshed, not just one with the exact same ones.
+const BUDGET_KEYS = ['budgets', 'current-budgets', 'budget-status', 'budget-summary', 'budget-performance', 'budget-suggestions'];
+const useRefreshBudgets = () => {
+  const queryClient = useQueryClient();
+  return () => Promise.all(BUDGET_KEYS.map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
+};
+
 // Create Budget — end_date default-calculation lives server-side (RPC) to
 // keep it consistent regardless of caller.
 const createBudget = async (data: CreateBudgetData) => {
@@ -24,7 +32,7 @@ const createBudget = async (data: CreateBudgetData) => {
       p_amount: data.amount,
       p_period: data.period,
       p_start_date: data.startDate,
-      p_category_id: data.categoryId ?? null,
+      p_category_ids: data.categoryIds ?? (data.categoryId ? [data.categoryId] : []),
       p_end_date: data.endDate ?? null,
       p_alert_threshold: data.alertThreshold ?? 80,
     });
@@ -36,7 +44,9 @@ const createBudget = async (data: CreateBudgetData) => {
 };
 
 export const useCreateBudget = () => {
+  const refreshBudgets = useRefreshBudgets();
   return useMutation({
+    onSuccess: refreshBudgets,
     mutationFn: (data: CreateBudgetData) => createBudget(data),
     onError: (error) => {
       handleApiError(error);
@@ -77,7 +87,7 @@ const updateBudget = async (data: UpdateBudgetData) => {
     const { error } = await supabase
       .from('budgets')
       .update({
-        category_id: rest.categoryId,
+        ...(rest.categoryIds ? { category_ids: rest.categoryIds, category_id: rest.categoryIds[0] ?? null } : {}),
         name: rest.name,
         amount: rest.amount,
         period: rest.period,
@@ -95,7 +105,9 @@ const updateBudget = async (data: UpdateBudgetData) => {
 };
 
 export const useUpdateBudget = () => {
+  const refreshBudgets = useRefreshBudgets();
   return useMutation({
+    onSuccess: refreshBudgets,
     mutationFn: (data: UpdateBudgetData) => updateBudget(data),
     onError: (error) => {
       handleApiError(error);
@@ -207,7 +219,9 @@ export const rolloverBudget = async (id: string) => {
 }
 
 export const useRolloverBudget = () => {
+  const refreshBudgets = useRefreshBudgets();
   return useMutation({
+    onSuccess: refreshBudgets,
     mutationFn: (id: string) => rolloverBudget(id),
     onError: (error) => {
       handleApiError(error);

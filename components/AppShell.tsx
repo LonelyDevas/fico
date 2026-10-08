@@ -8,6 +8,7 @@ import { Route, Redirect, useLocation } from 'react-router-dom';
 import Providers from '@/queries/query-provider';
 import Navbar from '@/components/navbar';
 import { FloatingAgent } from '@/components/floating-agent';
+import { AppBadge } from '@/components/app-badge';
 import { useIsAuthenticated, useAuthLoading } from '@/store/auth-store';
 
 import SignInPage from '@/ionic-pages/SignInPage';
@@ -24,6 +25,7 @@ import InvestmentsPage from '@/ionic-pages/InvestmentsPage';
 import CategoriesPage from '@/ionic-pages/CategoriesPage';
 import SettingsPage from '@/ionic-pages/SettingsPage';
 import ProfilePage from '@/ionic-pages/ProfilePage';
+import PrivacyPage from '@/ionic-pages/PrivacyPage';
 import { TransactionsPage } from '@/ionic-pages/TransactionsPage';
 import { WalletsPage } from '@/ionic-pages/WalletsPage';
 
@@ -70,7 +72,7 @@ setupIonicReact({
 
 function AppShellInner() {
   const location = useLocation();
-  const hideNav = ['/', '/signin', '/signup', '/onboarding', '/auth/callback'].includes(location.pathname);
+  const hideNav = ['/', '/signin', '/signup', '/onboarding', '/auth/callback', '/privacy'].includes(location.pathname);
   const isAuthenticated = useIsAuthenticated();
   const isAuthLoading = useAuthLoading();
 
@@ -91,6 +93,7 @@ function AppShellInner() {
           <Route exact path="/signup" component={SignUpPage} />
           <Route exact path="/onboarding" component={GuardedOnboarding} />
           <Route exact path="/auth/callback" component={AuthCallbackPage} />
+          <Route exact path="/privacy" component={PrivacyPage} />
           <Route exact path="/dashboard" component={GuardedDashboard} />
           <Route exact path="/statistics" component={GuardedStatistics} />
           <Route exact path="/wallets" component={GuardedWallets} />
@@ -109,6 +112,7 @@ function AppShellInner() {
         </IonRouterOutlet>
       </div>
       {!hideNav && <FloatingAgent />}
+      {isAuthenticated && <AppBadge />}
     </div>
   );
 }

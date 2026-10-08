@@ -1,4 +1,4 @@
-package com.example.app;
+package com.joshua.fico;
 
 import com.getcapacitor.BridgeActivity;
 

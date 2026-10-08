@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { runThemeSwitch } from '@/utils/theme-transition'
 
 interface ThemeState {
     isDarkMode: boolean
@@ -9,10 +10,14 @@ interface ThemeState {
 
 export const useThemeStore = create<ThemeState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             isDarkMode: false,
-            toggleDarkMode: () => set((state) => ({ isDarkMode: !state.isDarkMode })),
-            setDarkMode: (isDark: boolean) => set({ isDarkMode: isDark }),
+            toggleDarkMode: () => get().setDarkMode(!get().isDarkMode),
+            // Every switch goes through one animated step (see utils/theme-transition.ts).
+            setDarkMode: (isDark: boolean) => {
+                if (isDark === get().isDarkMode) return
+                runThemeSwitch(isDark, () => set({ isDarkMode: isDark }))
+            },
         }),
         {
             name: 'theme-storage',

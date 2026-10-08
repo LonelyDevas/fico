@@ -2,6 +2,8 @@ export type BudgetPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type BudgetStatus = 'active' | 'exceeded' | 'archived';
 
 export type CreateBudgetData = {
+  /** Every category this budget covers. Empty means all expenses. */
+  categoryIds?: string[];
   categoryId?: string;
   name: string;
   amount: number;
@@ -13,6 +15,7 @@ export type CreateBudgetData = {
 
 export type UpdateBudgetData = {
   id: string;
+  categoryIds?: string[];
   categoryId?: string;
   name?: string;
   amount?: number;

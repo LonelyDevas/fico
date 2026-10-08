@@ -25,13 +25,13 @@ import { useCreateBudget, useListBudgets, useBudgetSummary, useUpdateBudget } fr
 import { useListCategories } from '@/queries/user/category/categories'
 import { useSettingsStore } from '@/store/settings-store'
 import { getCurrencySymbol } from '@/types/settings'
-import { Loader2 } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { BudgetPeriod } from '@/types/budget'
 
 const budgetSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   amount: z.coerce.number().min(0.01, 'Amount must be greater than 0'),
-  categoryId: z.string().min(1, 'Category is required'),
+  categoryIds: z.array(z.string()).min(1, 'Pick at least one category'),
   period: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
   alertThreshold: z.coerce.number().min(1).max(100).default(80),
 })
@@ -42,7 +42,7 @@ type BudgetSeed = {
   id: string
   name?: string
   amount?: number
-  categoryId?: string
+  categoryIds?: string[]
   period?: BudgetPeriod
   alertThreshold?: number
 }
@@ -66,11 +66,13 @@ export default function BudgetModal({ open, onClose, budget }: { open: boolean; 
     defaultValues: {
       name: '',
       amount: 0,
-      categoryId: '',
+      categoryIds: [],
       period: 'monthly',
       alertThreshold: 80,
     },
   })
+
+  const selectedCategoryIds = form.watch('categoryIds')
 
   useEffect(() => {
     if (!open) return
@@ -79,7 +81,7 @@ export default function BudgetModal({ open, onClose, budget }: { open: boolean; 
       form.reset({
         name: budget.name || '',
         amount: budget.amount || 0,
-        categoryId: budget.categoryId || '',
+        categoryIds: budget.categoryIds ?? [],
         period: budget.period || 'monthly',
         alertThreshold: budget.alertThreshold || 80,
       })
@@ -89,7 +91,7 @@ export default function BudgetModal({ open, onClose, budget }: { open: boolean; 
     form.reset({
       name: '',
       amount: 0,
-      categoryId: '',
+      categoryIds: [],
       period: 'monthly',
       alertThreshold: 80,
     })
@@ -231,27 +233,42 @@ export default function BudgetModal({ open, onClose, budget }: { open: boolean; 
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</label>
-            <Select 
-                onValueChange={(value) => form.setValue('categoryId', value)}
-                defaultValue={form.getValues('categoryId')}
-            >
-                <SelectTrigger className="h-12 bg-secondary/30 border-none rounded-xl">
-                    <SelectValue placeholder="Choose spending category" />
-                </SelectTrigger>
-                <SelectContent>
-                    {categories.map((cat: any) => (
-                        <SelectItem key={cat.id || cat._id} value={cat.id || cat._id}>
-                            <div className="flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                                {cat.name}
-                            </div>
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            {form.formState.errors.categoryId && (
-              <p className="text-[10px] font-bold text-destructive uppercase">{form.formState.errors.categoryId.message}</p>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Categories</label>
+              <span className="text-xs font-semibold text-primary">
+                {selectedCategoryIds.length === 0 ? 'None picked' : `${selectedCategoryIds.length} picked`}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">Pick one or more. Spending in any of them counts toward this goal.</p>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((cat: any) => {
+                const id = String(cat.id || cat._id)
+                const selected = selectedCategoryIds.includes(id)
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() =>
+                      form.setValue(
+                        'categoryIds',
+                        selected ? selectedCategoryIds.filter((value) => value !== id) : [...selectedCategoryIds, id],
+                        { shouldValidate: true }
+                      )
+                    }
+                    className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition-colors ${
+                      selected ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-secondary/30 text-foreground'
+                    }`}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                    {cat.name}
+                    {selected && <Check className="h-3.5 w-3.5" />}
+                  </button>
+                )
+              })}
+            </div>
+            {form.formState.errors.categoryIds && (
+              <p className="text-[10px] font-bold text-destructive uppercase">{form.formState.errors.categoryIds.message}</p>
             )}
           </div>
 

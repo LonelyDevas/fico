@@ -10,6 +10,12 @@ import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
 import { BudgetPeriod } from '@/types/budget'
 
+interface BudgetCategory {
+  id: string
+  name: string
+  color: string
+}
+
 interface BudgetViewModel {
   id: string
   name: string
@@ -18,11 +24,8 @@ interface BudgetViewModel {
   remaining: number
   period: BudgetPeriod
   alertThreshold: number
-  category?: {
-    id: string
-    name: string
-    color: string
-  }
+  categoryIds: string[]
+  categories: BudgetCategory[]
   percentageUsed: number
   isOverBudget: boolean
   isNearThreshold: boolean
@@ -37,11 +40,8 @@ interface BudgetApiItem {
   remaining?: number
   period?: string
   alertThreshold?: number
-  category?: {
-    id: string
-    name: string
-    color: string
-  }
+  categoryIds?: string[]
+  categories?: BudgetCategory[]
 }
 
 const normalizeBudget = (budget: BudgetApiItem, index: number): BudgetViewModel => {
@@ -60,7 +60,8 @@ const normalizeBudget = (budget: BudgetApiItem, index: number): BudgetViewModel 
     remaining: remainingAmount,
       period: (budget.period as BudgetPeriod) || 'monthly',
     alertThreshold: alertThreshold,
-    category: budget.category,
+    categoryIds: budget.categoryIds ?? [],
+    categories: budget.categories ?? [],
     percentageUsed: percentageUsed,
     isOverBudget: spentAmount > budgetAmount,
     isNearThreshold: percentageUsed >= alertThreshold && spentAmount <= budgetAmount,
@@ -156,13 +157,13 @@ export default function BudgetList() {
                    <div className="flex items-center gap-4">
                         <div 
                             className="w-12 h-12 rounded-xl flex items-center justify-center text-white"
-                            style={{ backgroundColor: b.category?.color || '#6366f1' }}
+                            style={{ backgroundColor: b.categories[0]?.color || '#6366f1' }}
                         >
                             {b.name.charAt(0)}
                         </div>
                         <div>
                             <p className="font-bold text-foreground">{b.name}</p>
-                            <p className="text-xs text-muted-foreground uppercase">{b.period} • {b.category?.name || 'No Category'}</p>
+                            <p className="text-xs text-muted-foreground uppercase">{b.period} • {b.categories.length > 0 ? b.categories.map((c) => c.name).join(', ') : 'All expenses'}</p>
                         </div>
                    </div>
                    

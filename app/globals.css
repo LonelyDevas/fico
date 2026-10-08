@@ -195,15 +195,20 @@ html[data-app-h] ion-app {
   height: var(--app-h);
 }
 
-/* Force all elements to transition simultaneously during theme switch */
-html.theme-switching,
-html.theme-switching *,
-html.theme-switching *::before,
-html.theme-switching *::after {
-  transition-property: background-color, border-color, color, fill, stroke !important;
-  transition-duration: 300ms !important;
-  transition-timing-function: ease !important;
-  transition-delay: 0ms !important;
+/* Light/dark switch. The browser cross-fades a picture of the old screen into the new one (see
+   utils/theme-transition.ts), so every part of the screen changes together. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: ease;
+}
+
+/* Fallback when that isn't available: everything flips in one frame, nothing animates out of step. */
+html.theme-instant,
+html.theme-instant *,
+html.theme-instant *::before,
+html.theme-instant *::after {
+  transition: none !important;
 }
 
 

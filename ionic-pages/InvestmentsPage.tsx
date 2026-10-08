@@ -13,6 +13,7 @@ import { useArchiveInvestment, useInvestmentSummary, useListInvestments } from '
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useLiveHoldings } from '@/queries/crypto/prices'
 import type { Investment, InvestmentType } from '@/types/investment'
 
 export default function InvestmentsPage() {
@@ -38,11 +39,14 @@ export default function InvestmentsPage() {
   const presentTypes = INVESTMENT_TYPES.filter((t) => all.some((i) => i.type === t.value))
 
   const summary = summaryResponse?.data as any
-  const worth = Number(summary?.totalCurrentValue ?? 0)
+  const { holdings, liveById } = useLiveHoldings(all)
+  // The summary uses stored values; swap each live crypto holding's stored value for its live one.
+  const liveDelta = holdings.reduce((sum, h) => sum + (liveById[h.id] ? liveById[h.id].value - (Number(h.currentValue) || 0) : 0), 0)
+  const worth = Number(summary?.totalCurrentValue ?? 0) + liveDelta
   const invested = Number(summary?.totalInvested ?? 0)
   const dividends = Number(summary?.totalDividends ?? 0)
-  const gain = Number(summary?.totalGainLoss ?? 0)
-  const rate = Number(summary?.returnRate ?? 0)
+  const gain = Number(summary?.totalGainLoss ?? 0) + liveDelta
+  const rate = invested > 0 ? (gain / invested) * 100 : Number(summary?.returnRate ?? 0)
   const money = (value: number) => formatMoney(value, currency, !showAmounts)
 
   const note = useMemo(() => {
@@ -67,6 +71,7 @@ export default function InvestmentsPage() {
     <InvestmentCard
       key={i.id}
       investment={i}
+      live={liveById[i.id]}
       hideAmounts={!showAmounts}
       onAction={(a, inv) => setAction({ action: a, investment: inv })}
       onEdit={(inv) => setSheet({ open: true, investment: inv })}

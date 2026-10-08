@@ -1,10 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { IonPage, IonContent } from '@ionic/react'
 import { addDays, differenceInCalendarDays, format, parseISO, subDays } from 'date-fns'
-import { ArrowDownLeft, ArrowUpRight, BarChart3, ChevronRight, CreditCard, PieChart, Plus, Tag, type LucideIcon } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, BarChart3, ChevronRight, CreditCard, PieChart, Plus, SlidersHorizontal, Tag, type LucideIcon } from 'lucide-react'
 import { EmptyState } from '@/components/peacock-mascot'
 import { FicoBalanceCard, PERIODS, type Period } from '@/components/page/home/fico-balance-card'
 import { useUser } from '@/store/auth-store'
@@ -12,6 +12,13 @@ import { useSettingsStore } from '@/store/settings-store'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { useListTransactions, useQuickStats, useTopCategories } from '@/queries/user/transaction/transaction'
 import { useBillCalendar } from '@/queries/user/bill/bills'
+import { useListObligations } from '@/queries/user/obligation/obligations'
+import { useListInvestments } from '@/queries/user/investment/investments'
+import { useLiveHoldings } from '@/queries/crypto/prices'
+import { coinLabel } from '@/utils/crypto-prices'
+import type { Investment } from '@/types/investment'
+import { resolveOrder, useHomeWidgets, type WidgetId } from '@/store/home-widgets-store'
+import { CustomizeWidgetsSheet } from '@/components/page/home/customize-widgets-sheet'
 import { getCategoryTotal, normalizeCategoryData } from '@/components/page/statistics/statistics-utils'
 import { formatMoney } from '@/utils/formatter'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -56,6 +63,7 @@ function CardHeader({ title, to, linkLabel }: { title: string; to?: string; link
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>('month')
+  const [customizeOpen, setCustomizeOpen] = useState(false)
   const user = useUser()
   const { currency, hideAmountsOnOpen } = useSettingsStore()
   const [showAmounts, setShowAmounts] = useState(!hideAmountsOnOpen)
@@ -64,6 +72,7 @@ export default function DashboardPage() {
   const { data: walletsResponse, isLoading: walletsLoading } = useListWallets()
   const { data: statsResponse, isLoading: statsLoading } = useQuickStats({ period })
   const { data: categoriesResponse, isLoading: categoriesLoading } = useTopCategories({ period, type: 'expense' })
+  const { data: obligationsResponse, isLoading: obligationsLoading } = useListObligations({ limit: '100', direction: 'lending' })
   const { data: transactionsResponse, isLoading: transactionsLoading } = useListTransactions({ limit: '5' })
 
   const today = useMemo(() => new Date(), [])
@@ -141,53 +150,62 @@ export default function DashboardPage() {
       .slice(0, 4)
   }, [billsResponse])
 
-  return (
-    <IonPage>
-      <IonContent className="bg-background text-foreground">
-        <main className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
-          {/* Greeting */}
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {format(today, 'EEEE, MMMM d')}
-            </p>
-            <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight text-foreground sm:text-3xl">
-              {greetingFor(today)}, <span className="text-primary">{firstName}</span>
-            </h1>
-          </div>
+  const owedPeople = useMemo(() => {
+    const list: any[] = asList(obligationsResponse?.data, ['items', 'obligations'])
+    const byPerson = new Map<string, { name: string; remaining: number }>()
+    for (const o of list) {
+      if (o.direction !== 'lending' || o.status === 'settled' || o.status === 'archived') continue
+      const name = String(o.counterparty || 'Unknown').trim() || 'Unknown'
+      const entry = byPerson.get(name.toLowerCase()) ?? { name, remaining: 0 }
+      entry.remaining += Number(o.remainingBalance) || 0
+      byPerson.set(name.toLowerCase(), entry)
+    }
+    return [...byPerson.values()].filter((p) => p.remaining > 0).sort((a, b) => b.remaining - a.remaining)
+  }, [obligationsResponse])
+  const owedTotal = owedPeople.reduce((sum, p) => sum + p.remaining, 0)
 
-          <div className="mt-5 flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-            <div className="contents lg:flex lg:flex-col lg:gap-4">
-              {/* Fico + balance */}
-              <div className="order-1 lg:order-none">
-                <FicoBalanceCard
-                  note={note}
-                  balance={money(totalBalance)}
-                  income={money(income)}
-                  expenses={money(expenses)}
-                  statsLoading={statsLoading}
-                  balanceLoading={walletsLoading}
-                  noteLoading={statsLoading || categoriesLoading}
-                  period={period}
-                  onPeriodChange={setPeriod}
-                  showAmounts={showAmounts}
-                  onToggleAmounts={() => setShowAmounts((v) => !v)}
-                />
-                <nav aria-label="Shortcuts" className="-mx-1 mt-3 flex gap-2 lg:hidden overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {SHORTCUTS.map(({ label, href, icon: Icon }) => (
+  const { data: investmentsResponse } = useListInvestments({ limit: '100' })
+  const investments = useMemo(() => {
+    const data = investmentsResponse?.data as any
+    const list: any[] = Array.isArray(data) ? data : data?.items ?? []
+    return list.map((i) => ({ ...i, id: String(i._id ?? i.id) })) as Investment[]
+  }, [investmentsResponse])
+  const { holdings: coinHoldings, liveById: coinLive, loading: coinsLoading } = useLiveHoldings(investments)
+  const coinTotal = coinHoldings.reduce((sum, h) => sum + (coinLive[h.id]?.value ?? Number(h.currentValue) ?? 0), 0)
+
+  const widgetNodes: Record<WidgetId, React.ReactNode> = {
+    yourMoney: (
+                    <Card className="order-3 lg:order-none">
+                <CardHeader title="Your money" to="/wallets" linkLabel="Open" />
+                <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
+                  {walletsLoading &&
+                    [0, 1, 2].map((i) => <Skeleton key={i} className="h-[4.25rem] min-w-[9.5rem] shrink-0 rounded-2xl" />)}
+                  {wallets.map((wallet) => (
                     <Link
-                      key={href}
-                      to={href}
-                      className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-ios transition-colors hover:border-primary/50"
+                      key={wallet.id}
+                      to="/wallets"
+                      className="min-w-[9.5rem] shrink-0 snap-start rounded-2xl border border-border bg-secondary/40 p-3 transition-colors hover:border-primary/50"
                     >
-                      <Icon className="h-4 w-4 text-primary" />
-                      {label}
+                      <span className="block truncate text-xs font-medium text-muted-foreground">{wallet.name}</span>
+                      <span className="mt-1 block text-lg font-semibold tabular-nums text-foreground">
+                        {wallet.isCard ? `-${money(wallet.balance)}` : money(wallet.balance)}
+                      </span>
                     </Link>
                   ))}
-                </nav>
-              </div>
-
-              {/* Where it went */}
-              <Card className="order-4 lg:order-none">
+                  {!walletsLoading && (
+                  <Link
+                    to="/wallets"
+                    className="flex min-w-[9.5rem] shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border p-3 text-sm font-semibold text-primary hover:bg-primary/5"
+                  >
+                    <Plus className="h-5 w-5" />
+                    New wallet
+                  </Link>
+                  )}
+                </div>
+              </Card>
+    ),
+    whereItWent: (
+                    <Card className="order-4 lg:order-none">
                 <CardHeader title={`Where it went ${periodPhrase}`} to="/statistics" linkLabel="Details" />
                 {categoriesLoading ? (
                   <Skeleton className="h-24 rounded-2xl" />
@@ -216,63 +234,9 @@ export default function DashboardPage() {
                   <EmptyState compact pose="advisor" title="No spending yet" description="Add an expense and it will show up here." />
                 )}
               </Card>
-            </div>
-
-            <div className="contents lg:flex lg:flex-col lg:gap-4">
-              {/* Quick actions (desktop; phones get the pill row under the balance card) */}
-              <Card className="hidden lg:block">
-                <CardHeader title="Quick actions" />
-                <div className="grid grid-cols-2 gap-3">
-                  {SHORTCUTS.map(({ label, hint, href, icon: Icon }) => (
-                    <Link
-                      key={href}
-                      to={href}
-                      className="group flex items-center gap-3 rounded-2xl border border-border bg-secondary/40 p-3 transition-colors hover:border-primary/50 hover:bg-primary/5"
-                    >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-foreground">{label}</span>
-                        <span className="block truncate text-xs text-muted-foreground">{hint}</span>
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </Card>
-
-              {/* Your money */}
-              <Card className="order-3 lg:order-none">
-                <CardHeader title="Your money" to="/wallets" linkLabel="Open" />
-                <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-1">
-                  {walletsLoading &&
-                    [0, 1, 2].map((i) => <Skeleton key={i} className="h-[4.25rem] min-w-[9.5rem] shrink-0 rounded-2xl" />)}
-                  {wallets.map((wallet) => (
-                    <Link
-                      key={wallet.id}
-                      to="/wallets"
-                      className="min-w-[9.5rem] shrink-0 snap-start rounded-2xl border border-border bg-secondary/40 p-3 transition-colors hover:border-primary/50"
-                    >
-                      <span className="block truncate text-xs font-medium text-muted-foreground">{wallet.name}</span>
-                      <span className="mt-1 block text-lg font-semibold tabular-nums text-foreground">
-                        {wallet.isCard ? `-${money(wallet.balance)}` : money(wallet.balance)}
-                      </span>
-                    </Link>
-                  ))}
-                  {!walletsLoading && (
-                  <Link
-                    to="/wallets"
-                    className="flex min-w-[9.5rem] shrink-0 snap-start flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border p-3 text-sm font-semibold text-primary hover:bg-primary/5"
-                  >
-                    <Plus className="h-5 w-5" />
-                    New wallet
-                  </Link>
-                  )}
-                </div>
-              </Card>
-
-              {/* Coming up */}
-              <Card className="order-5 lg:order-none">
+    ),
+    comingUp: (
+                    <Card className="order-5 lg:order-none">
                 <CardHeader title="Coming up" to="/bills" linkLabel="All bills" />
                 {billsLoading ? (
                   <Skeleton className="h-24 rounded-2xl" />
@@ -309,9 +273,76 @@ export default function DashboardPage() {
                   <p className="py-4 text-center text-sm text-muted-foreground">Nothing due soon. Bills you add will show up here.</p>
                 )}
               </Card>
-
-              {/* Latest activity */}
-              <Card className="order-6 lg:order-none">
+    ),
+    owedToYou: (
+      <Card>
+        <CardHeader title="Owed to you" to="/debts" linkLabel="Open" />
+        {obligationsLoading ? (
+          <Skeleton className="h-24 rounded-2xl" />
+        ) : owedPeople.length > 0 ? (
+          <>
+            <p className="mb-3 text-sm text-muted-foreground">
+              {owedPeople.length} {owedPeople.length === 1 ? 'person owes' : 'people owe'} you{' '}
+              <span className="font-semibold text-foreground">{money(owedTotal)}</span>
+            </p>
+            <ul className="divide-y divide-border">
+              {owedPeople.slice(0, 4).map((person) => (
+                <li key={person.name} className="flex items-center gap-3 py-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    {person.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{person.name}</span>
+                  <span className="text-sm font-semibold tabular-nums text-foreground">{money(person.remaining)}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="py-4 text-center text-sm text-muted-foreground">Nobody owes you right now.</p>
+        )}
+      </Card>
+    ),
+    crypto:
+      coinHoldings.length === 0 ? null : (
+        <Card>
+          <CardHeader title="Crypto" to="/investments" linkLabel="Open" />
+          {coinsLoading ? (
+            <Skeleton className="h-24 rounded-2xl" />
+          ) : (
+            <>
+              <p className="font-heading text-2xl font-bold tabular-nums text-foreground">{money(coinTotal)}</p>
+              <ul className="mt-3 divide-y divide-border">
+                {coinHoldings.map((h) => {
+                  const live = coinLive[h.id]
+                  return (
+                    <li key={h.id} className="flex items-center gap-3 py-2.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                        {coinLabel(h.coinId, h.coinSymbol).slice(0, 4)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-foreground">{h.name}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {Number(h.quantity)} {coinLabel(h.coinId, h.coinSymbol)}
+                          {live?.change24h != null && (
+                            <span className={live.change24h >= 0 ? 'text-success' : 'text-destructive'}>
+                              {' '}
+                              · {live.change24h >= 0 ? '+' : ''}
+                              {live.change24h.toFixed(2)}%
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="text-sm font-semibold tabular-nums text-foreground">{money(live ? live.value : Number(h.currentValue) || 0)}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </>
+          )}
+        </Card>
+      ),
+    latestActivity: (
+                    <Card className="order-6 lg:order-none">
                 <CardHeader title="Latest activity" to="/transactions" />
                 {transactionsLoading ? (
                   <div className="space-y-2">
@@ -345,10 +376,96 @@ export default function DashboardPage() {
                   <p className="py-4 text-center text-sm text-muted-foreground">No activity yet. Tap + to add your first transaction.</p>
                 )}
               </Card>
+    ),
+    quickActions: (
+                    <Card className="hidden lg:block">
+                <CardHeader title="Quick actions" />
+                <div className="grid grid-cols-2 gap-3">
+                  {SHORTCUTS.map(({ label, hint, href, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      to={href}
+                      className="group flex items-center gap-3 rounded-2xl border border-border bg-secondary/40 p-3 transition-colors hover:border-primary/50 hover:bg-primary/5"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-foreground">{label}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{hint}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </Card>
+    ),
+  }
+
+  const { order, hidden } = useHomeWidgets()
+  const visibleWidgets = resolveOrder(order).filter((id) => !hidden.includes(id))
+
+  return (
+    <IonPage>
+      <IonContent className="bg-background text-foreground">
+        <main className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
+          {/* Greeting */}
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {format(today, 'EEEE, MMMM d')}
+            </p>
+            <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight text-foreground sm:text-3xl">
+              {greetingFor(today)}, <span className="text-primary">{firstName}</span>
+            </h1>
+          </div>
+
+          <div className="mt-5">
+            {/* Fico + balance */}
+            <div>
+              <FicoBalanceCard
+                  note={note}
+                  balance={money(totalBalance)}
+                  income={money(income)}
+                  expenses={money(expenses)}
+                  statsLoading={statsLoading}
+                  balanceLoading={walletsLoading}
+                  noteLoading={statsLoading || categoriesLoading}
+                  period={period}
+                  onPeriodChange={setPeriod}
+                  showAmounts={showAmounts}
+                  onToggleAmounts={() => setShowAmounts((v) => !v)}
+                />
+              <nav aria-label="Shortcuts" className="-mx-1 mt-3 flex gap-2 lg:hidden overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {SHORTCUTS.map(({ label, href, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      to={href}
+                      className="flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-ios transition-colors hover:border-primary/50"
+                    >
+                      <Icon className="h-4 w-4 text-primary" />
+                      {label}
+                    </Link>
+                  ))}
+                </nav>
             </div>
+
+            <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[repeat(2,minmax(0,1fr))] lg:items-start">
+              {visibleWidgets.map((id) => (
+                <Fragment key={id}>{widgetNodes[id]}</Fragment>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCustomizeOpen(true)}
+              className="mx-auto mt-5 flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold text-muted-foreground shadow-ios transition-colors hover:text-foreground"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Customize Home
+            </button>
           </div>
         </main>
       </IonContent>
+      <CustomizeWidgetsSheet open={customizeOpen} onClose={() => setCustomizeOpen(false)} />
     </IonPage>
   )
 }

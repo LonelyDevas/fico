@@ -15,11 +15,7 @@ interface BudgetCardProps {
   remaining: number
   period: string
   alertThreshold: number
-  category?: {
-    id: string
-    name: string
-    color: string
-  }
+  categories?: { id: string; name: string; color: string }[]
   percentageUsed: number
   isOverBudget: boolean
   isNearThreshold: boolean
@@ -36,7 +32,7 @@ export function BudgetCard({
   remaining,
   period,
   alertThreshold,
-  category,
+  categories = [],
   percentageUsed,
   isOverBudget,
   isNearThreshold,
@@ -69,7 +65,7 @@ export function BudgetCard({
         <div className="flex items-center gap-3">
           <div 
             className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg font-bold"
-            style={{ backgroundColor: category?.color || '#6366f1' }}
+            style={{ backgroundColor: categories[0]?.color || '#6366f1' }}
           >
             {name.charAt(0)}
           </div>
@@ -77,9 +73,14 @@ export function BudgetCard({
             <h3 className="font-bold text-lg text-foreground leading-none">{name}</h3>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs text-muted-foreground uppercase tracking-wider">{period}</span>
-              {category && (
-                <Badge variant="outline" className="text-[9px] h-4 px-1.5 opacity-70">
+              {categories.slice(0, 2).map((category) => (
+                <Badge key={category.id} variant="outline" className="text-[9px] h-4 px-1.5 opacity-70">
                   {category.name}
+                </Badge>
+              ))}
+              {categories.length > 2 && (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 opacity-70">
+                  +{categories.length - 2}
                 </Badge>
               )}
             </div>

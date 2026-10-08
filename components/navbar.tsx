@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useHistory, useLocation, Link } from 'react-router-dom'
 import { useRootNavigate } from '@/utils/use-root-navigate'
 import {
@@ -19,6 +19,7 @@ import { BottomTabBar } from '@/components/nav/bottom-tab-bar'
 import { AccountSheet } from '@/components/nav/account-sheet'
 import { NAV_ITEMS, getPageTitle, isNavItemActive, isManageSubRoute } from '@/components/nav/nav-items'
 import { QuickAddSheet } from '@/components/page/transaction/quick-add-sheet'
+import type { TransactionType } from '@/types/transaction'
 import { UserAvatar } from '@/components/ui/user-avatar'
 
 
@@ -33,6 +34,19 @@ export default function DNavbar() {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [accountOpen, setAccountOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [addType, setAddType] = useState<TransactionType | undefined>()
+
+  // App-icon shortcuts open the app at /dashboard?add=expense|income|transfer.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const type = params.get('add')
+    if (type !== 'expense' && type !== 'income' && type !== 'transfer') return
+    setAddType(type)
+    setAddOpen(true)
+    params.delete('add')
+    const rest = params.toString()
+    history.replace(location.pathname + (rest ? '?' + rest : ''))
+  }, [location.search, location.pathname, history])
 
   const pageTitle = getPageTitle(location.pathname)
   const showBack = isManageSubRoute(location.pathname)
@@ -187,7 +201,7 @@ export default function DNavbar() {
         </div>
       </header>
 
-      <QuickAddSheet open={addOpen} onClose={() => setAddOpen(false)} />
+      <QuickAddSheet open={addOpen} initialType={addType} onClose={() => { setAddOpen(false); setAddType(undefined) }} />
     </>
   )
 }

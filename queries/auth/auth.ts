@@ -267,3 +267,30 @@ export const useCheckReferral = (id: string) => {
     enabled: !!id && !isSupabase(),
   });
 };
+
+/** Wipes the signed-in user's wallets, transactions, bills, budgets, debts and investments. */
+export const useResetMyData = () => {
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc('reset_my_data');
+      if (error) throw error;
+    },
+    onError: (error) => {
+      handleApiError(error);
+    },
+  });
+};
+
+/** Permanently deletes the signed-in user's data and sign-in account. */
+export const useDeleteMyAccount = () => {
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc('delete_my_account');
+      if (error) throw error;
+      await supabase.auth.signOut().catch(() => undefined);
+    },
+    onError: (error) => {
+      handleApiError(error);
+    },
+  });
+};

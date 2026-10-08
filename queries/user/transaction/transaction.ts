@@ -40,6 +40,10 @@ const invalidateTransactionAndWalletQueries = (queryClient: ReturnType<typeof us
   queryClient.invalidateQueries({ queryKey: ["transaction-top-categories"] });
   queryClient.invalidateQueries({ queryKey: ["transactions-spent-today"] });
   queryClient.invalidateQueries({ queryKey: ["transactions-top-category-today"] });
+  // Budgets total up transactions, so any add, edit or delete changes them.
+  for (const key of ["budgets", "current-budgets", "budget-summary", "budget-performance"]) {
+    queryClient.invalidateQueries({ queryKey: [key] });
+  }
 };
 
 // Create Transaction — balance mutation + optional bill linkage, so this

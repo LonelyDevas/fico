@@ -19,6 +19,7 @@ export async function generateStaticParams() {
     { all: ['settings'] },
     { all: ['profile'] },
     { all: ['onboarding'] },
+    { all: ['privacy'] },
     { all: ['auth', 'callback'] },
   ]
 }

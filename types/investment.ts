@@ -26,6 +26,10 @@ export type Investment = {
   notes?: string;
   tags: string[];
   status: InvestmentStatus;
+  /** CoinGecko id, ticker and coin count, for crypto holdings with a live price. */
+  coinId?: string | null;
+  coinSymbol?: string | null;
+  quantity?: number | null;
 };
 
 export type CreateInvestmentData = {
@@ -41,6 +45,9 @@ export type CreateInvestmentData = {
   expectedReturnRate?: number;
   notes?: string;
   tags?: string[];
+  coinId?: string;
+  coinSymbol?: string;
+  quantity?: number;
 };
 
 export type UpdateInvestmentData = {
@@ -54,6 +61,9 @@ export type UpdateInvestmentData = {
   notes?: string;
   tags?: string[];
   status?: InvestmentStatus;
+  coinId?: string | null;
+  coinSymbol?: string | null;
+  quantity?: number | null;
 };
 
 export type UpdateInvestmentValueData = {

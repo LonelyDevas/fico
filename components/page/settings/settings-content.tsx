@@ -1,19 +1,20 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
-import { CalendarDays, Check, ChevronRight, Coins, Download, EyeOff, House, LayoutList, LogOut, Moon, RotateCcw, UserRound } from 'lucide-react'
+import { Bell, CalendarDays, Check, ChevronRight, Coins, Download, EyeOff, House, LayoutList, LogOut, Moon, RotateCcw, Trash2, UserRound } from 'lucide-react'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { DEFAULT_SETTINGS, useSettingsStore } from '@/store/settings-store'
 import { useAuthStore } from '@/store/auth-store'
-import { useLogout } from '@/queries/auth/auth'
+import { useDeleteMyAccount, useLogout, useResetMyData } from '@/queries/auth/auth'
 import { useRootNavigate } from '@/utils/use-root-navigate'
 import { useThemeStore } from '@/store/theme-store'
 import { formatMoney } from '@/utils/formatter'
 import { cn } from '@/lib/utils'
+import { currentPushSubscription, disablePush, enablePush, pushSupport, sendTestPush, type PushSupport } from '@/utils/push'
 import type { CurrencyCode, DateFormat, LandingPage } from '@/types/settings'
 
 const currencyOptions: { value: CurrencyCode; label: string; symbol: string }[] = [
@@ -59,7 +60,11 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (nex
       role="switch"
       aria-checked={checked}
       aria-label={label}
-      onClick={() => onChange(!checked)}
+      onClick={(event) => {
+        // The whole row also toggles on tap; without this the tap would reach the row and flip it twice.
+        event.stopPropagation()
+        onChange(!checked)
+      }}
       className={cn(
         'relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-200',
         checked ? 'bg-success' : 'bg-secondary ring-1 ring-inset ring-border'
@@ -208,16 +213,97 @@ function EyeSpots() {
   )
 }
 
+const PUSH_HINTS: Record<PushSupport, string> = {
+  ready: 'Get a heads up on this device when bills are overdue or due soon.',
+  'needs-install': 'On iPhone, add Fico to your Home Screen first, then open it from there to turn this on.',
+  unsupported: 'This browser cannot show notifications.',
+  unconfigured: 'Reminders are not set up on the server yet.',
+}
+
+function BillReminderRow() {
+  const [support, setSupport] = useState<PushSupport>('unsupported')
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    const state = pushSupport()
+    setSupport(state)
+    if (state === 'ready') currentPushSubscription().then((sub) => setEnabled(!!sub)).catch(() => {})
+  }, [])
+
+  const change = async (next: boolean) => {
+    setBusy(true)
+    try {
+      if (next) {
+        await enablePush()
+        setEnabled(true)
+        await sendTestPush().catch(() => {})
+        toast.success('Bill reminders are on')
+      } else {
+        await disablePush()
+        setEnabled(false)
+        toast.success('Bill reminders are off')
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not change reminders')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const usable = support === 'ready' && !busy
+  return (
+    <Row
+      icon={<Bell className="size-[18px]" />}
+      tone="primary"
+      label="Bill reminders"
+      hint={PUSH_HINTS[support]}
+      onRowClick={usable ? () => change(!enabled) : undefined}
+      control={<Toggle checked={enabled} onChange={(next) => usable && change(next)} label="Bill reminders" />}
+    />
+  )
+}
+
 export function SettingsPageContent() {
   const settings = useSettingsStore()
   const { isDarkMode, setDarkMode } = useThemeStore()
   const [picker, setPicker] = useState<null | 'currency' | 'landing' | 'date'>(null)
   const [confirmReset, setConfirmReset] = useState(false)
   const [confirmSignOut, setConfirmSignOut] = useState(false)
+  const [confirmWipe, setConfirmWipe] = useState<null | 'data' | 'account'>(null)
+  const [wipeText, setWipeText] = useState('')
   const user = useAuthStore((state) => state.user)
   const clearAuth = useAuthStore((state) => state.clearAuth)
   const { mutate: logout, isPending: signingOut } = useLogout()
   const rootNavigate = useRootNavigate()
+  const { mutate: resetData, isPending: resettingData } = useResetMyData()
+  const { mutate: deleteAccount, isPending: deletingAccount } = useDeleteMyAccount()
+
+  const closeWipe = (open: boolean) => {
+    if (open) return
+    setConfirmWipe(null)
+    setWipeText('')
+  }
+  const handleWipe = () => {
+    if (confirmWipe === 'data') {
+      resetData(undefined, {
+        onSuccess: () => {
+          closeWipe(false)
+          toast.success('All your data was erased')
+          rootNavigate('/dashboard', { clearCache: true })
+        },
+      })
+    } else {
+      deleteAccount(undefined, {
+        onSuccess: () => {
+          closeWipe(false)
+          clearAuth()
+          toast.success('Your account was deleted')
+          rootNavigate('/signin', { clearCache: true })
+        },
+      })
+    }
+  }
 
   // How many of the settings differ from the defaults: shown as a badge on Reset.
   const changedCount = (['currency', 'hideAmountsOnOpen', 'compactLayout', 'defaultLandingPage', 'dateFormat'] as const).filter(
@@ -307,6 +393,10 @@ export function SettingsPageContent() {
         />
       </Group>
 
+      <Group title="Notifications">
+        <BillReminderRow />
+      </Group>
+
       <Group title="Getting around">
         <Row
           icon={<House className="size-[18px]" />}
@@ -334,6 +424,11 @@ export function SettingsPageContent() {
           to="/profile"
         />
         <Row icon={<LogOut className="size-[18px]" />} label="Sign out" onClick={() => setConfirmSignOut(true)} />
+      </Group>
+
+      <Group title="Danger zone" footer="These cannot be undone. Resetting keeps your account and settings; deleting removes your account completely.">
+        <Row icon={<RotateCcw className="size-[18px]" />} label="Reset all data" destructive hint="Erase wallets, transactions, bills, budgets, debts and investments." onClick={() => setConfirmWipe('data')} />
+        <Row icon={<Trash2 className="size-[18px]" />} label="Delete account" destructive hint="Permanently remove your account and everything in it." onClick={() => setConfirmWipe('account')} />
       </Group>
 
       <Group title="This device" footer="Your settings are saved on this device and apply right away.">
@@ -394,6 +489,33 @@ export function SettingsPageContent() {
         confirmingLabel="Signing out..."
         onConfirm={handleSignOut}
       />
+
+      <ConfirmSheet
+        open={confirmWipe !== null}
+        onOpenChange={closeWipe}
+        variant="destructive"
+        title={confirmWipe === 'account' ? 'Delete your account?' : 'Erase all your data?'}
+        description={
+          confirmWipe === 'account'
+            ? 'Your account, wallets, transactions and everything else will be permanently deleted. You will need to sign up again to use Fico.'
+            : 'All wallets, transactions, bills, budgets, debts, investments and your own categories will be permanently erased. Your account and settings stay.'
+        }
+        confirmLabel={confirmWipe === 'account' ? 'Delete account' : 'Erase everything'}
+        isConfirming={resettingData || deletingAccount}
+        confirmingLabel="Working..."
+        confirmDisabled={wipeText.trim().toUpperCase() !== (confirmWipe === 'account' ? 'DELETE' : 'RESET')}
+        onConfirm={handleWipe}
+      >
+        <input
+          value={wipeText}
+          onChange={(e) => setWipeText(e.target.value)}
+          placeholder={`Type ${confirmWipe === 'account' ? 'DELETE' : 'RESET'} to confirm`}
+          aria-label="Type the word to confirm"
+          autoCapitalize="characters"
+          autoComplete="off"
+          className="mt-4 h-11 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-destructive/40"
+        />
+      </ConfirmSheet>
 
       <ConfirmSheet
         open={confirmReset}
