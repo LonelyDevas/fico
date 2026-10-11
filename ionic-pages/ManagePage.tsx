@@ -2,7 +2,7 @@
 
 import { IonPage, IonContent } from '@ionic/react'
 import { Link } from 'react-router-dom'
-import { BarChart3, ChevronRight, CreditCard, HandCoins, PieChart, Settings as SettingsIcon, Tag, TrendingUp, type LucideIcon } from 'lucide-react'
+import { BarChart3, ChevronRight, CreditCard, HandCoins, LineChart, PieChart, Settings as SettingsIcon, Tag, TrendingUp, type LucideIcon } from 'lucide-react'
 import { PeacockMascot } from '@/components/peacock-mascot'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useBillSummary } from '@/queries/user/bill/bills'
@@ -36,6 +36,7 @@ const MANAGE_GROUPS: ManageGroup[] = [
     title: 'Understand',
     items: [
       { label: 'Statistics', href: '/statistics', icon: BarChart3, description: 'Charts and trends', tone: 'bg-accent/15 text-accent' },
+      { label: 'Forecast', href: '/forecast', icon: LineChart, description: 'Future cash and past balances', tone: 'bg-primary/10 text-primary' },
       { label: 'Categories', href: '/categories', icon: Tag, description: 'Organize your spending', tone: 'bg-secondary text-foreground' },
     ],
   },

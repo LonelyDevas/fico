@@ -17,6 +17,7 @@ import OnboardingPage from '@/ionic-pages/OnboardingPage';
 import AuthCallbackPage from '@/ionic-pages/AuthCallbackPage';
 import DashboardPage from '@/ionic-pages/DashboardPage';
 import StatisticsPage from '@/ionic-pages/StatisticsPage';
+import ForecastPage from '@/ionic-pages/ForecastPage';
 import ManagePage from '@/ionic-pages/ManagePage';
 import BillsPage from '@/ionic-pages/BillsPage';
 import BudgetsPage from '@/ionic-pages/BudgetsPage';
@@ -55,6 +56,7 @@ function withAuth<P extends object>(Page: React.ComponentType<P>) {
 const GuardedOnboarding = withAuth(OnboardingPage);
 const GuardedDashboard = withAuth(DashboardPage);
 const GuardedStatistics = withAuth(StatisticsPage);
+const GuardedForecast = withAuth(ForecastPage);
 const GuardedManage = withAuth(ManagePage);
 const GuardedBills = withAuth(BillsPage);
 const GuardedBudgets = withAuth(BudgetsPage);
@@ -96,6 +98,7 @@ function AppShellInner() {
           <Route exact path="/privacy" component={PrivacyPage} />
           <Route exact path="/dashboard" component={GuardedDashboard} />
           <Route exact path="/statistics" component={GuardedStatistics} />
+          <Route exact path="/forecast" component={GuardedForecast} />
           <Route exact path="/wallets" component={GuardedWallets} />
           <Route exact path="/transactions" component={GuardedTransactions} />
           <Route exact path="/manage" component={GuardedManage} />
