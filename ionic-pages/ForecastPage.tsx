@@ -9,7 +9,7 @@ import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Too
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { useAllWallets, useOpenBills, useTransactionsAfter } from '@/queries/user/forecast/forecast'
+import { useActiveBudgets, useAllWallets, useOpenBills, useTransactionsAfter } from '@/queries/user/forecast/forecast'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
 import { balancesAt, buildForecast, typicalFlow } from '@/utils/forecast'
@@ -93,29 +93,39 @@ function FutureView() {
   const money = (n: number) => formatMoney(n, currency, hideAmountsOnOpen)
   const [days, setDays] = useState(90)
   const [includeTypical, setIncludeTypical] = useState(true)
+  const [includeBudgets, setIncludeBudgets] = useState(true)
 
   const windowStart = useMemo(() => subDays(new Date(), TYPICAL_WINDOW_DAYS).toISOString(), [])
   const walletsQ = useAllWallets()
   const billsQ = useOpenBills()
+  const budgetsQ = useActiveBudgets()
   const recentQ = useTransactionsAfter(windowStart)
   const { data: wallets } = walletsQ
   const { data: bills } = billsQ
+  const { data: budgets } = budgetsQ
   const { data: recent } = recentQ
-  const error = walletsQ.error || billsQ.error || recentQ.error
+  const error = walletsQ.error || billsQ.error || budgetsQ.error || recentQ.error
 
   const forecast = useMemo(() => {
-    if (!wallets || !bills || !recent) return null
+    if (!wallets || !bills || !recent || !budgets) return null
     const active = wallets.filter((w) => w.status !== 'archived')
     const cash = active.filter((w) => w.type !== 'credit_card')
     const walletTypes = Object.fromEntries(wallets.map((w) => [w.id, w.type]))
+    // Budgets already plan these expenses, so everyday spending leaves them out.
+    const budgeted: Set<string> | 'all' | undefined = !includeBudgets
+      ? undefined
+      : budgets.some((b) => b.categoryIds.length === 0)
+        ? 'all'
+        : new Set(budgets.flatMap((b) => b.categoryIds))
     return buildForecast({
       startingCash: cash.reduce((sum, w) => sum + Number(w.balance), 0),
       bills,
       walletTypes,
       horizonDays: days,
-      typical: includeTypical ? typicalFlow(recent, new Set(cash.map((w) => w.id)), TYPICAL_WINDOW_DAYS) : undefined,
+      typical: includeTypical ? typicalFlow(recent, new Set(cash.map((w) => w.id)), TYPICAL_WINDOW_DAYS, budgeted) : undefined,
+      budgets: includeBudgets ? budgets : undefined,
     })
-  }, [wallets, bills, recent, days, includeTypical])
+  }, [wallets, bills, budgets, recent, days, includeTypical, includeBudgets])
 
   if (error) return <LoadError error={error} />
   if (!forecast) return <Skeleton className="h-96 w-full rounded-2xl" />
@@ -140,10 +150,16 @@ function FutureView() {
             </button>
           ))}
         </div>
+        <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          Use my budgets
+          <Switch checked={includeBudgets} onCheckedChange={setIncludeBudgets} />
+        </label>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           Include everyday spending &amp; income
           <Switch checked={includeTypical} onCheckedChange={setIncludeTypical} />
         </label>
+        </div>
       </div>
 
       {forecast.shortfallDate && (
@@ -189,9 +205,24 @@ function FutureView() {
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           Counts your unpaid and recurring bills and income across non-credit-card wallets
+          {includeBudgets ? ', plus the spending your budgets allow (what is left this period, then the full amount each period after)' : ''}
           {includeTypical ? `, plus your average everyday spending and income over the last ${TYPICAL_WINDOW_DAYS} days` : ''}. Bills charged to a credit card are left out.
         </p>
       </div>
+
+      {forecast.budgetSpend.length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <p className="mb-3 text-sm font-semibold">Budgeted spending in this window</p>
+          <ul className="divide-y divide-border">
+            {forecast.budgetSpend.map((b) => (
+              <li key={b.name} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <span className="truncate font-medium">{b.name}</span>
+                <span className="shrink-0 font-bold">{money(b.total)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="rounded-2xl border border-border bg-card p-4">
         <p className="mb-3 text-sm font-semibold">Next on the calendar</p>

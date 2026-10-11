@@ -1,4 +1,4 @@
-import { addDays, addMonths, addWeeks, addYears, format, parseISO, startOfDay } from 'date-fns'
+import { differenceInCalendarDays, addDays, addMonths, addWeeks, addYears, format, parseISO, startOfDay } from 'date-fns'
 
 export type LedgerWallet = {
   id: string
@@ -17,7 +17,19 @@ export type LedgerTxn = {
   serviceFee?: number
   serviceFeeDeducted?: boolean
   billId?: string | null
+  categoryId?: string | null
   date: string
+}
+
+export type ForecastBudget = {
+  id: string
+  name: string
+  amount: number
+  spent: number
+  startDate: string
+  endDate: string
+  /** Empty means the budget covers every expense. */
+  categoryIds: string[]
 }
 
 export type ForecastBill = {
@@ -102,7 +114,13 @@ export type ForecastPoint = {
 export type TypicalFlow = { dailyIncome: number; dailySpend: number }
 
 /** Average everyday income and spending that is not tied to a bill. */
-export function typicalFlow(txns: LedgerTxn[], cashWalletIds: Set<string>, days: number): TypicalFlow {
+export function typicalFlow(
+  txns: LedgerTxn[],
+  cashWalletIds: Set<string>,
+  days: number,
+  /** Expenses in these categories are left out (a budget already plans them); 'all' leaves out every expense. */
+  budgeted?: Set<string> | 'all'
+): TypicalFlow {
   let income = 0
   let spend = 0
   const now = Date.now()
@@ -110,7 +128,10 @@ export function typicalFlow(txns: LedgerTxn[], cashWalletIds: Set<string>, days:
     if (new Date(txn.date).getTime() > now) continue
     if (txn.billId || !cashWalletIds.has(txn.walletId)) continue
     if (txn.type === 'income') income += Number(txn.amount) || 0
-    else if (txn.type === 'expense') spend += Number(txn.amount) || 0
+    else if (txn.type === 'expense') {
+      if (budgeted === 'all' || (budgeted && txn.categoryId && budgeted.has(txn.categoryId))) continue
+      spend += Number(txn.amount) || 0
+    }
   }
   return { dailyIncome: income / days, dailySpend: spend / days }
 }
@@ -122,6 +143,8 @@ export type Forecast = {
   endBalance: number
   totalBills: number
   totalIncome: number
+  /** Planned spending from budgets over the horizon, by budget. */
+  budgetSpend: { name: string; total: number }[]
   lowest: ForecastPoint
   /** First day the projected cash drops below zero, if it does. */
   shortfallDate: string | null
@@ -134,6 +157,7 @@ export function buildForecast(input: {
   walletTypes: Record<string, string>
   horizonDays: number
   typical?: TypicalFlow
+  budgets?: ForecastBudget[]
   today?: Date
 }): Forecast {
   const today = startOfDay(input.today ?? new Date())
@@ -176,6 +200,24 @@ export function buildForecast(input: {
     byDay.set(key, (byDay.get(key) ?? 0) + event.amount)
   }
 
+  const budgetTotals = new Map<string, number>()
+  const budgetOn = (day: Date) => {
+    let total = 0
+    for (const b of input.budgets ?? []) {
+      const s = startOfDay(parseISO(b.startDate))
+      const e = startOfDay(parseISO(b.endDate))
+      const len = Math.max(1, differenceInCalendarDays(e, s) + 1)
+      let rate = 0
+      if (day < s) rate = 0
+      else if (day > e) rate = Number(b.amount) / len // assume it renews for another period
+      else if (s > today) rate = Number(b.amount) / len
+      else rate = Math.max(0, Number(b.amount) - Number(b.spent)) / (differenceInCalendarDays(e, today) + 1)
+      budgetTotals.set(b.name, (budgetTotals.get(b.name) ?? 0) + rate)
+      total += rate
+    }
+    return total
+  }
+
   const points: ForecastPoint[] = []
   let balance = input.startingCash
   let shortfallDate: string | null = null
@@ -183,6 +225,7 @@ export function buildForecast(input: {
     const day = addDays(today, i)
     const key = format(day, 'yyyy-MM-dd')
     if (i > 0) balance += dailyNet
+    if (i > 0) balance -= budgetOn(day)
     balance += byDay.get(key) ?? 0
     const point = { date: key, label: format(day, 'MMM d'), balance: round2(balance) }
     points.push(point)
@@ -199,6 +242,7 @@ export function buildForecast(input: {
     endBalance: points[points.length - 1].balance,
     totalBills: round2(sum('bill')),
     totalIncome: round2(sum('income')),
+    budgetSpend: [...budgetTotals].map(([name, total]) => ({ name, total: round2(total) })),
     lowest,
     shortfallDate,
   }
