@@ -38,6 +38,8 @@ interface Starting {
 
 let current: Starting | null = null
 let failedAt: { userId: string; at: number } | null = null
+/** The last user a runtime was started for, so sign-out can clear a copy that never finished. */
+let lastUserId: string | null = null
 
 /** Resolves to the local runtime for the signed-in user, or null to use the server directly. */
 // Every query asks for the runtime; the stored session only changes on auth events.
@@ -61,6 +63,7 @@ export async function getRuntime(): Promise<Runtime | null> {
   if (current && current.userId !== session.userId) void teardown(false)
   if (!current) {
     if (failedAt?.userId === session.userId && Date.now() - failedAt.at < RETRY_AFTER_MS) return null
+    lastUserId = session.userId
     const entry: Starting = { userId: session.userId, promise: Promise.resolve(null), ready: null, hydrating: false }
     entry.promise = startRuntime(entry, session.email, session.username).then(
       (rt) => {
@@ -78,6 +81,8 @@ export async function getRuntime(): Promise<Runtime | null> {
       (e) => {
         console.warn('[offline] local database unavailable, using the server directly:', e)
         if (current === entry) {
+          // Shown by the sync badge: without it a failed first download is invisible until the user is offline.
+          syncStatus.set({ error: e instanceof Error ? e.message : String(e) })
           current = null
           failedAt = { userId: session.userId, at: Date.now() }
         }
@@ -132,7 +137,12 @@ async function startRuntime(entry: Starting, email?: string, username?: string):
       // then getRuntime() sends queries to the server.
       if (navigator.onLine === false) throw new Error('First sync needs a connection.')
       entry.hydrating = true
-      await sync.hydrate()
+      syncStatus.set({ preparing: true, error: null })
+      try {
+        await sync.hydrate()
+      } finally {
+        syncStatus.set({ preparing: false })
+      }
       sync.start()
       // Changes the user made on the server during the download: fetch them before reads switch over.
       await sync.request()
@@ -156,9 +166,21 @@ async function startRuntime(entry: Starting, email?: string, username?: string):
 export async function teardown(wipe: boolean): Promise<void> {
   const active = current
   current = null
-  if (!active) return
-  const runtime = await active.promise.catch(() => null)
-  if (!runtime) return
+  const runtime = active ? await active.promise.catch(() => null) : null
+  if (!runtime) {
+    // No database open: a first download that failed or was cut short may still have left rows behind.
+    const userId = active?.userId ?? lastUserId
+    if (wipe && userId) {
+      lastUserId = null
+      const release = await acquireDbLock()
+      if (release) {
+        await import('./database').then(({ LocalDatabase }) => LocalDatabase.discard(userId)).catch(() => {})
+        release()
+      }
+      syncStatus.set({ error: null })
+    }
+    return
+  }
   runtime.sync.stop()
   const pending = await runtime.local.pendingCount().catch(() => 0)
   if (wipe && pending === 0) await runtime.local.destroy()
@@ -193,9 +215,13 @@ export function withOfflineSupport(client: SupabaseClient): SupabaseClient {
   real = client
 
   // A start that failed because the device was offline is worth retrying as soon as it is back.
+  // The badge reads `online` even when no sync engine is running (the first download never finished).
+  syncStatus.set({ online: navigator.onLine })
   window.addEventListener('online', () => {
     failedAt = null
+    syncStatus.set({ online: true })
   })
+  window.addEventListener('offline', () => syncStatus.set({ online: false }))
 
   client.auth.onAuthStateChange((event) => {
     sessionCache = null

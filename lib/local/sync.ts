@@ -115,7 +115,9 @@ export class SyncEngine {
     try {
       do {
         this.again = false
-        await this.pull()
+        // Table by table, so a download cut short (the app closed, the connection dropped) keeps what
+        // it got and the next attempt only fetches the rest.
+        await this.pull(true)
       } while (this.again)
     } finally {
       this.running = false
@@ -230,11 +232,15 @@ export class SyncEngine {
 
   // --- pull ---------------------------------------------------------------------------------------
 
-  /** Replaces local rows with the server's. Returns true when anything changed. */
-  async pull(): Promise<boolean> {
+  /**
+   * Replaces local rows with the server's. Returns true when anything changed. Normally every table is
+   * applied in one transaction; `eachTable` saves each one as soon as it arrives (first download).
+   */
+  async pull(eachTable = false): Promise<boolean> {
     if (this.stopped) return false
     const tables = SYNCED_TABLES.filter((t) => this.local.engine.hasTable(t))
     const incoming: Record<string, { upserts: Record<string, unknown>[]; deletes: string[] }> = {}
+    let changedAny = false
 
     for (const table of tables) {
       const hasUpdatedAt = this.local.engine.catalog.tablesWithUpdatedAt.has(table)
@@ -252,11 +258,17 @@ export class SyncEngine {
         if (error) throw new Error(`${table}: ${error.message}`)
         upserts.push(...((data as Record<string, unknown>[]) ?? []))
       }
-      incoming[table] = { upserts, deletes }
+      if (eachTable) {
+        if (!(await this.applyIncoming({ [table]: { upserts, deletes } }))) {
+          this.again = true
+          return false
+        }
+        changedAny = true
+      } else incoming[table] = { upserts, deletes }
     }
 
-    const changed = Object.keys(incoming).length > 0
-    if (changed) {
+    const changed = changedAny || Object.keys(incoming).length > 0
+    if (Object.keys(incoming).length > 0) {
       const applied = await this.applyIncoming(incoming)
       if (!applied) {
         // Something was queued while downloading; the server copy is stale for it. Go round again.
@@ -313,12 +325,15 @@ export class SyncEngine {
             [table]
           )
         ).rows.map((r) => r.column_name)
+          // Only the columns the server sent: a column the server doesn't have (yet) keeps its local
+          // default instead of becoming null and failing a not-null constraint.
+          .filter((c) => upserts.some((row) => c in row))
         const list = cols.map((c) => `"${c}"`).join(', ')
         const setList = cols.filter((c) => c !== 'id').map((c) => `"${c}" = excluded."${c}"`).join(', ')
         for (let i = 0; i < upserts.length; i += 200) {
           await tx.query(
             `insert into public."${table}" (${list}) select ${list} from json_populate_recordset(null::public."${table}", $1::json)
-             on conflict (id) do update set ${setList}`,
+             on conflict (id) do ${setList ? `update set ${setList}` : 'nothing'}`,
             [JSON.stringify(upserts.slice(i, i + 200))]
           )
         }

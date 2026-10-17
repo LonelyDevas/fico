@@ -111,6 +111,35 @@ await SR('sync_replay', { p_op_id: opId, p_name: 'bills_summary', p_args: {}, p_
 const again = await SR('sync_replay', { p_op_id: opId, p_name: 'bills_summary', p_args: {}, p_ids: [] })
 check('duplicate replay ignored', again.data?.duplicate === true, again)
 
+// A second device whose first download is cut short, against a server that lacks a column the device has.
+{
+  let failOn: string | null = 'transactions'
+  const strip = (rows: unknown) =>
+    Array.isArray(rows) ? rows.map(({ total_interest_earned: _drop, ...r }: Record<string, unknown>) => r) : rows
+  const flaky = {
+    ...remote,
+    from: (t: string) =>
+      recordingBuilder([], async (c) => {
+        if (t === failOn && c.some(([m]) => m === 'in')) {
+          failOn = null
+          return Promise.reject(new Error('Failed to fetch'))
+        }
+        const res = await server.execute('table', t, c)
+        return t === 'wallets' ? { ...res, data: strip(res.data) } : res
+      }),
+  } as unknown as SupabaseClient
+  const local2 = await LocalDatabase.open({ userId: UID, email: 'a@b.c', username: 'tester', factory: async () => new PGlite() })
+  const sync2 = new SyncEngine(local2, flaky)
+  const cut = await sync2.hydrate().then(() => false, () => true)
+  const keptWallets = (await local2.db.query<{ n: number }>(`select count(*)::int as n from public.wallets`)).rows[0].n
+  check('interrupted first download keeps the tables it finished', cut && keptWallets > 0 && (await local2.meta('last_pull_at')) === null, { cut, keptWallets })
+  await sync2.hydrate()
+  check('next attempt completes it', (await snapshot(local2.db)) === (await snapshot(serverDb)) && (await local2.meta('last_pull_at')) !== null)
+  const interest = (await local2.db.query<{ v: number | null }>(`select total_interest_earned::float as v from public.wallets`)).rows
+  check('columns the server did not send take their local default', interest.length > 0 && interest.every((r) => r.v === 0), interest)
+  sync2.stop()
+}
+
 sync.stop()
 console.log(failures ? `${failures} FAILURES` : 'ALL PASSED')
 process.exit(failures ? 1 : 0)

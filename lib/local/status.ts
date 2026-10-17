@@ -11,6 +11,8 @@ export interface SyncFailure {
 export interface SyncStatus {
   /** The local database is on and answering queries. */
   active: boolean
+  /** First sign-in on this device: the offline copy is still downloading. */
+  preparing: boolean
   online: boolean
   syncing: boolean
   /** Changes made on this device that are not on the server yet. */
@@ -23,6 +25,7 @@ export interface SyncStatus {
 
 const initial: SyncStatus = {
   active: false,
+  preparing: false,
   online: true,
   syncing: false,
   pending: 0,

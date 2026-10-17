@@ -12,7 +12,7 @@ import { syncStatus, useSyncStatus } from '@/lib/local/status'
  * refused are shown once as a toast.
  */
 export function SyncStatusBadge() {
-  const { active, online, pending, syncing, failures } = useSyncStatus()
+  const { active, preparing, online, pending, syncing, failures, error } = useSyncStatus()
 
   useEffect(() => {
     if (failures.length === 0) return
@@ -20,7 +20,24 @@ export function SyncStatusBadge() {
     syncStatus.dismissFailures()
   }, [failures])
 
-  if (!active || (online && pending === 0)) return null
+  if (!active) {
+    // Before the offline copy is ready the app works from the server; say so only when it matters.
+    const note = preparing
+      ? 'Saving your data for offline use…'
+      : error && !online
+        ? 'Offline · your data isn’t saved on this device yet'
+        : null
+    if (!note) return null
+    return (
+      <div className="pointer-events-none fixed inset-x-0 z-[60] flex justify-center px-4" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
+        <div className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-ios">
+          {preparing ? <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" /> : <CloudOff className="h-3.5 w-3.5 text-warning" />}
+          {note}
+        </div>
+      </div>
+    )
+  }
+  if (online && pending === 0) return null
 
   const label = !online
     ? pending > 0

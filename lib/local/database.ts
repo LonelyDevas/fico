@@ -159,6 +159,27 @@ export class LocalDatabase {
     await this.db.close()
   }
 
+  /**
+   * Removes a user's local data that no runtime has open (sign-out after a first download that never
+   * finished), unless it holds changes waiting to sync.
+   */
+  static async discard(userId: string): Promise<void> {
+    const dataDir = dataDirFor(userId)
+    const dbs = (await indexedDB.databases?.().catch(() => [])) ?? []
+    if (!dbs.some((d) => d.name === `/pglite/${dataDir}`)) return
+    const db = await createPglite(dataDir)
+    let pending = 0
+    try {
+      const res = await db.query<{ n: number }>(
+        `select case when to_regclass('public._sync_outbox') is null then 0 else (select count(*)::int from public._sync_outbox where status = 'pending') end as n`
+      )
+      pending = res.rows[0]?.n ?? 0
+    } finally {
+      await db.close().catch(() => {})
+    }
+    if (pending === 0) await deleteIdb(dataDir)
+  }
+
   /** Closes and removes this user's local data (used on sign-out). */
   async destroy(): Promise<void> {
     await this.db.close().catch(() => {})
