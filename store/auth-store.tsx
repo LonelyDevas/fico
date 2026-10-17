@@ -107,38 +107,59 @@ export function useSupabaseAuthSync() {
         }
       }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
-      // Name fields live in user_details; a missing row or an error just means no name yet.
-      const { data: details } = await supabase
-        .from('user_details')
-        .select('firstname, lastname')
-        .eq('owner_id', session.user.id)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      const meta = session.user.user_metadata ?? {}
-      const googlePhoto: string | undefined = meta.avatar_url || meta.picture || undefined
-
-      setAuth({
-        _id: session.user.id,
-        username: profile?.username ?? session.user.email ?? '',
-        email: session.user.email ?? '',
-        status: profile?.status ?? 'active',
-        provider: session.user.app_metadata?.provider ?? 'local',
-        firstName: details?.firstname ?? undefined,
-        lastName: details?.lastname ?? undefined,
+      // Sign the user in from the session alone, right away. The profile and name below are read
+      // through the on-device database, which can take a while to open (and much longer to download
+      // everything on a first sign-in); waiting on it here left pages on the loading spinner until the
+      // loading timeout sent the user back to sign-in, and signing in again started the wait over.
+      const user = session.user;
+      const meta = user.user_metadata ?? {};
+      const googlePhoto: string | undefined = meta.avatar_url || meta.picture || undefined;
+      const previous = useAuthStore.getState().user;
+      const known = previous?._id === user.id ? previous : null;
+      const base: AccessToken = {
+        _id: user.id,
+        username: known?.username ?? meta.username ?? user.email ?? '',
+        email: user.email ?? '',
+        status: known?.status ?? 'active',
+        provider: user.app_metadata?.provider ?? 'local',
+        firstName: known?.firstName,
+        lastName: known?.lastName,
         googleAvatarUrl: googlePhoto,
-        // An explicit choice (including '' = none) wins; otherwise use the Google photo.
-        avatarUrl: profile?.avatar_url ?? googlePhoto,
+        avatarUrl: known ? known.avatarUrl : googlePhoto,
         exp: session.expires_at ?? 0,
         iat: 0,
-      });
+      };
+      if (cancelled) return;
+      setAuth(base);
+
+      try {
+        const [profileRes, detailsRes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+          // Name fields live in user_details; a missing row just means no name yet.
+          supabase.from('user_details').select('firstname, lastname').eq('owner_id', user.id).maybeSingle(),
+        ]);
+
+        // Signed out or switched accounts while these were loading.
+        const latest = useAuthStore.getState().user;
+        if (cancelled || latest?._id !== user.id) return;
+
+        // A failed read keeps what is already known instead of blanking it.
+        const next = { ...latest };
+        if (!profileRes.error) {
+          const profile = profileRes.data;
+          next.username = profile?.username ?? base.username;
+          next.status = profile?.status ?? 'active';
+          // An explicit choice (including '' = none) wins; otherwise use the Google photo.
+          next.avatarUrl = profile?.avatar_url ?? googlePhoto;
+        }
+        if (!detailsRes.error) {
+          next.firstName = detailsRes.data?.firstname ?? undefined;
+          next.lastName = detailsRes.data?.lastname ?? undefined;
+        }
+        setAuth(next);
+      } catch {
+        // Keep the session-only details; the next auth event fills them in.
+      }
     };
 
     supabase.auth

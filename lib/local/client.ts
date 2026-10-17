@@ -17,7 +17,8 @@ interface Runtime {
   release: () => void
 }
 
-const HYDRATE_TIMEOUT_MS = 30_000
+/** After the local database fails to start, use the server for this long before trying again. */
+const RETRY_AFTER_MS = 30_000
 
 export const offlineEnabled = () =>
   typeof window !== 'undefined' &&
@@ -26,7 +27,17 @@ export const offlineEnabled = () =>
   process.env.NEXT_PUBLIC_OFFLINE !== 'off'
 
 let real: SupabaseClient | null = null
-let current: { userId: string; promise: Promise<Runtime | null> } | null = null
+interface Starting {
+  userId: string
+  promise: Promise<Runtime | null>
+  /** Set once the database is open and has the user's data. */
+  ready: Runtime | null
+  /** First sign-in on this device: the user's data is still downloading. */
+  hydrating: boolean
+}
+
+let current: Starting | null = null
+let failedAt: { userId: string; at: number } | null = null
 
 /** Resolves to the local runtime for the signed-in user, or null to use the server directly. */
 // Every query asks for the runtime; the stored session only changes on auth events.
@@ -47,18 +58,39 @@ export async function getRuntime(): Promise<Runtime | null> {
     if (current) void teardown(false)
     return null
   }
-  if (current && current.userId !== session.userId) await teardown(false)
+  if (current && current.userId !== session.userId) void teardown(false)
   if (!current) {
-    const promise = startRuntime(session.userId, session.email, session.username).catch((e) => {
-      console.warn('[offline] local database unavailable, using the server directly:', e)
-      return null
-    })
-    current = { userId: session.userId, promise }
-    // Try again next time if this attempt could not start.
-    void promise.then((rt) => {
-      if (!rt && current?.promise === promise) current = null
-    })
+    if (failedAt?.userId === session.userId && Date.now() - failedAt.at < RETRY_AFTER_MS) return null
+    const entry: Starting = { userId: session.userId, promise: Promise.resolve(null), ready: null, hydrating: false }
+    entry.promise = startRuntime(entry, session.email, session.username).then(
+      (rt) => {
+        if (current === entry) {
+          entry.ready = rt
+          entry.hydrating = false
+          // Null means another tab owns the database: use the server for a while rather than asking again per query.
+          if (!rt) {
+            current = null
+            failedAt = { userId: session.userId, at: Date.now() }
+          }
+        }
+        return rt
+      },
+      (e) => {
+        console.warn('[offline] local database unavailable, using the server directly:', e)
+        if (current === entry) {
+          current = null
+          failedAt = { userId: session.userId, at: Date.now() }
+        }
+        return null
+      }
+    )
+    current = entry
   }
+  if (current.ready) return current.ready
+  // A first sign-in downloads everything, which can take a long time: the server answers meanwhile so
+  // nothing waits on it. Otherwise the database is only opening, and changes made offline may still be
+  // queued in it, so wait for it rather than read or write around them.
+  if (current.hydrating) return null
   return current.promise
 }
 
@@ -82,29 +114,36 @@ function acquireDbLock(): Promise<(() => void) | null> {
   })
 }
 
-async function startRuntime(userId: string, email?: string, username?: string): Promise<Runtime | null> {
+async function startRuntime(entry: Starting, email?: string, username?: string): Promise<Runtime | null> {
+  const { userId } = entry
   const release = await acquireDbLock()
   if (!release) return null
 
+  let local: LocalDatabase | null = null
   try {
     const [{ LocalDatabase }, { SyncEngine }] = await Promise.all([import('./database'), import('./sync')])
     let sync: SyncEngine | null = null
-    const local = await LocalDatabase.open({ userId, email, username, onQueued: () => sync?.queued() })
+    local = await LocalDatabase.open({ userId, email, username, onQueued: () => sync?.queued() })
     sync = new SyncEngine(local, real!)
 
     const hydrated = await local.meta('last_pull_at')
     if (hydrated === null) {
-      // First run on this device: nothing to show until the server's data is here.
+      // First run on this device: download everything before the app starts reading from it. Until
+      // then getRuntime() sends queries to the server.
       if (navigator.onLine === false) throw new Error('First sync needs a connection.')
-      await Promise.race([
-        sync.hydrate(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('First sync timed out.')), HYDRATE_TIMEOUT_MS)),
-      ])
+      entry.hydrating = true
+      await sync.hydrate()
+      sync.start()
+      // Changes the user made on the server during the download: fetch them before reads switch over.
+      await sync.request()
+    } else {
+      sync.start()
+      void sync.request()
     }
-    sync.start()
-    void sync.request()
     return { local, sync, release }
   } catch (e) {
+    // Close it, or the next attempt opens a second copy of the same database while this one is still live.
+    await local?.close().catch(() => {})
     release()
     throw e
   }
@@ -152,6 +191,11 @@ async function routeRpc(client: SupabaseClient, name: string, calls: Call[]): Pr
 export function withOfflineSupport(client: SupabaseClient): SupabaseClient {
   if (!offlineEnabled()) return client
   real = client
+
+  // A start that failed because the device was offline is worth retrying as soon as it is back.
+  window.addEventListener('online', () => {
+    failedAt = null
+  })
 
   client.auth.onAuthStateChange((event) => {
     sessionCache = null
