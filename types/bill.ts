@@ -1,6 +1,6 @@
 export type BillType = 'bill' | 'income';
 export type BillStatus = 'active' | 'archived';
-export type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type RecurringFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
 export type PaymentStatus = 'paid' | 'unpaid' | 'overdue' | 'partial' | 'received';
 
 export type Bill = {

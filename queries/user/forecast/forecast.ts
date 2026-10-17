@@ -33,12 +33,27 @@ export const useAllWallets = () =>
     queryKey: ["wallets", "all-status"],
     queryFn: async () => {
       assertSupabase();
-      return fetchAll<LedgerWallet>((from, to) =>
+      const wallets = await fetchAll<LedgerWallet>((from, to) =>
         supabase
           .from('wallets')
           .select('id,name,type,balance,status,created_at')
           .order('created_at', { ascending: true })
           .range(from, to)
+      );
+      // Imported transactions can predate the wallet's own created_at, so the
+      // look-back also needs the earliest date each wallet actually has activity.
+      return Promise.all(
+        wallets.map(async (wallet) => {
+          const { data, error } = await supabase
+            .from('transactions')
+            .select('date')
+            .eq('status', 'completed')
+            .or(`wallet_id.eq.${wallet.id},to_wallet_id.eq.${wallet.id}`)
+            .order('date', { ascending: true })
+            .limit(1);
+          if (error) throw error;
+          return { ...wallet, firstActivityAt: (data?.[0]?.date as string | undefined) ?? undefined };
+        })
       );
     },
   });

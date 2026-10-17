@@ -7,6 +7,8 @@ export type LedgerWallet = {
   balance: number
   status?: string
   createdAt?: string
+  /** Date of the wallet's earliest completed transaction, which can predate createdAt for imports. */
+  firstActivityAt?: string
 }
 
 export type LedgerTxn = {
@@ -40,7 +42,7 @@ export type ForecastBill = {
   paidAmount?: number
   dueDate: string
   isRecurring: boolean
-  recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  recurringFrequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'
   walletId?: string | null
   paymentStatus: string
 }
@@ -75,7 +77,9 @@ export function balancesAt(wallets: LedgerWallet[], txnsAfter: LedgerTxn[], asOf
     // A credit card balance is the amount owed, so money in lowers it.
     const storedChange = isCard(wallet.type) ? -net : net
     const created = wallet.createdAt ? new Date(wallet.createdAt) : null
-    const existed = !created || created.getTime() <= asOf.getTime()
+    const firstActivity = wallet.firstActivityAt ? new Date(wallet.firstActivityAt) : null
+    // Imported history can predate the wallet record, so earlier activity counts as existing.
+    const existed = !created || created.getTime() <= asOf.getTime() || (!!firstActivity && firstActivity.getTime() <= asOf.getTime())
     return {
       wallet,
       balance: existed ? round2(Number(wallet.balance) - storedChange) : null,
@@ -90,6 +94,8 @@ const occurrence = (date: Date, frequency: ForecastBill['recurringFrequency'], n
       return addDays(date, n)
     case 'weekly':
       return addWeeks(date, n)
+    case 'biweekly':
+      return addWeeks(date, n * 2)
     case 'yearly':
       return addYears(date, n)
     default:

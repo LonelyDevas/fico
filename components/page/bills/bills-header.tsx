@@ -1,4 +1,3 @@
-import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 
 interface BillsHeaderProps {
@@ -7,22 +6,19 @@ interface BillsHeaderProps {
 
 export function BillsHeader({ onCreate }: BillsHeaderProps) {
   return (
-    <div className="bg-gradient-to-r from-primary/5 via-accent/5 to-success/5 border-b border-border">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-4xl font-bold text-foreground">Bills & Income</h1>
-            <p className="text-sm text-muted-foreground mt-1">Track recurring expenses, income entries, due dates, and payment health in one view.</p>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Button className="gap-2 rounded-full" onClick={onCreate}>
-              <Plus className="w-4 h-4" />
-              New Entry
-            </Button>
-          </div>
-        </div>
+    <div className="flex items-end justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">What is coming up</p>
+        <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight text-foreground sm:text-3xl">Bills & Income</h1>
       </div>
+      <button
+        type="button"
+        onClick={onCreate}
+        className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-sm font-semibold text-primary-foreground shadow-ios hover:opacity-90"
+      >
+        <Plus className="h-4 w-4" />
+        New Entry
+      </button>
     </div>
   )
 }

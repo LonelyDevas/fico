@@ -144,7 +144,7 @@ export function BillsList({
                     {bill.isRecurring && (
                       <Badge variant="outline" className="gap-1">
                         <Repeat className="w-3.5 h-3.5" />
-                        {bill.recurringFrequency || 'Recurring'}
+                        {bill.recurringFrequency === 'biweekly' ? 'Every 2 weeks' : bill.recurringFrequency || 'Recurring'}
                       </Badge>
                     )}
                     {bill.status === 'archived' && <Badge variant="secondary">Archived</Badge>}

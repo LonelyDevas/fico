@@ -225,7 +225,7 @@ export default function BillsPage() {
   return (
     <IonPage>
       <IonContent className="bg-background text-foreground">
-        <main className="flex-1">
+        <main className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
           <BillsHeader
             onCreate={() => {
               setEditingBill(null)
@@ -233,7 +233,7 @@ export default function BillsPage() {
             }}
           />
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6">
+          <div className="mt-5 space-y-6">
             <BillsOverview
               summary={summary}
               upcomingCount={upcomingCount}

@@ -171,6 +171,7 @@ export const useMarkBillPaid = () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["bill-calendar"] });
       queryClient.invalidateQueries({ queryKey: ["bill-summary"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
@@ -185,10 +186,7 @@ export const useMarkBillPaid = () => {
 // Mark Bill as Unpaid — single-table reset, direct client call.
 const markUnpaid = async (data: MarkUnpaidData) => {
   if (isSupabase()) {
-    const { error } = await supabase
-      .from('bills')
-      .update({ payment_status: 'unpaid', paid_amount: 0, last_paid_date: null })
-      .eq('id', data.id);
+    const { error } = await supabase.rpc('bills_mark_unpaid', { p_id: data.id });
     if (error) throw error;
     return { message: 'success' };
   }
@@ -203,6 +201,9 @@ export const useMarkBillUnpaid = () => {
     mutationFn: (data: MarkUnpaidData) => markUnpaid(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["bill-summary"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
       queryClient.invalidateQueries({ queryKey: ["overdue-bills"] });
@@ -216,7 +217,7 @@ export const useMarkBillUnpaid = () => {
 // Archive Bill
 const archiveBill = async (data: { id: string }) => {
   if (isSupabase()) {
-    const { error } = await supabase.from('bills').update({ status: 'archived' }).eq('id', data.id);
+    const { error } = await supabase.rpc('bills_archive', { p_id: data.id });
     if (error) throw error;
     return { message: 'success' };
   }
@@ -231,6 +232,8 @@ export const useArchiveBill = () => {
     mutationFn: (data: { id: string }) => archiveBill(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["bill-summary"] });
       queryClient.invalidateQueries({ queryKey: ["upcoming-bills"] });
       queryClient.invalidateQueries({ queryKey: ["overdue-bills"] });

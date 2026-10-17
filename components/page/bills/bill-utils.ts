@@ -4,7 +4,7 @@ import { Bill, BillSummary, BillStatus, BillType, PaymentStatus, RecurringFreque
 const paymentStatuses: PaymentStatus[] = ['paid', 'unpaid', 'overdue', 'partial', 'received']
 const billStatuses: BillStatus[] = ['active', 'archived']
 const billTypes: BillType[] = ['bill', 'income']
-const recurringFrequencies: RecurringFrequency[] = ['daily', 'weekly', 'monthly', 'yearly']
+const recurringFrequencies: RecurringFrequency[] = ['daily', 'weekly', 'biweekly', 'monthly', 'yearly']
 
 const toNumber = (value: unknown, fallback = 0): number => {
   const parsed = typeof value === 'number' ? value : Number(value)

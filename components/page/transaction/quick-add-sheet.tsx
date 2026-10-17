@@ -303,7 +303,7 @@ export function QuickAddSheet({
                 </p>
               )}
               {savingsHidden > 0 && sourceWallets.length > 0 && (
-                <p className="mt-1.5 text-xs text-muted-foreground">Savings wallets can\u2019t pay directly. Transfer the money to another wallet first.</p>
+                <p className="mt-1.5 text-xs text-muted-foreground">Savings wallets can&apos;t pay directly. Transfer the money to another wallet first.</p>
               )}
             </div>
 
