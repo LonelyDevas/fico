@@ -3,6 +3,7 @@
 import { axiosInstance, axiosInstanceFormData } from "@/utils/axios-instance";
 import { supabase } from "@/utils/supabase-client";
 import { toCamelCase } from "@/utils/case-transform";
+import { parseImportCsv } from "@/utils/import-csv";
 import { handleApiError } from "@/utils/error-handler";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -236,21 +237,42 @@ export const useCategoryBreakdown = (params?: GetCategoryBreakdownParams) => {
   });
 };
 
-// Import Transactions — CSV parsing lives in the import-transactions Edge
-// Function (it needs to run server-side and then call the bulk-import RPC).
+// Import Transactions — the CSV is parsed on the device (utils/import-csv.ts) and the rows go
+// through the transactions_bulk_import RPC, so importing also works offline and syncs later.
 const importTransactions = async (data: ImportTransactionsData) => {
   if (isSupabase()) {
-    const form = new FormData();
-    form.append('file', data.file);
-    form.append('walletId', data.walletId);
-    if (data.categoryId) form.append('categoryId', data.categoryId);
-    if (data.preview) form.append('preview', String(data.preview));
+    const preview = data.preview === true || data.preview === 'true';
+    const { data: categories } = await supabase.from('categories').select('id, name');
+    const { totalRows, valid, skipped } = parseImportCsv(await data.file.text(), categories ?? [], data.categoryId);
 
-    const { data: result, error } = await supabase.functions.invoke('import-transactions', {
-      body: form,
+    if (preview) {
+      return {
+        message: 'success',
+        data: { totalRows, willImport: valid.length, willSkip: skipped.length, skippedRows: skipped, preview: valid },
+      };
+    }
+    if (valid.length === 0) {
+      return {
+        message: 'success',
+        data: { message: 'No valid transactions found to import.', totalRows, imported: 0, skipped: skipped.length, skippedRows: skipped },
+      };
+    }
+
+    const { data: result, error } = await supabase.rpc('transactions_bulk_import', {
+      p_wallet_id: data.walletId,
+      p_rows: valid,
     });
     if (error) throw error;
-    return { message: 'success', data: result };
+    return {
+      message: 'success',
+      data: {
+        message: `Successfully imported ${valid.length} transaction${valid.length !== 1 ? 's' : ''}.`,
+        totalRows,
+        imported: result?.imported ?? valid.length,
+        skipped: skipped.length,
+        skippedRows: skipped,
+      },
+    };
   }
   const response = await axiosInstanceFormData.post("/transaction/import", data);
   return response.data;

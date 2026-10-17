@@ -15,6 +15,14 @@ import '@ionic/react/css/core.css'
 /* Optional CSS utils */
 
 import './globals.css'
+
+/* Self-hosted fonts (latin subset) so text renders the same offline */
+import '@fontsource/inter/latin-400.css'
+import '@fontsource/inter/latin-500.css'
+import '@fontsource/inter/latin-600.css'
+import '@fontsource/inter/latin-700.css'
+import '@fontsource/poppins/latin-600.css'
+import '@fontsource/poppins/latin-700.css'
 import DevErrorOverlay from '@/components/DevErrorOverlay'
 import { Agentation } from 'agentation'
 // Using global fonts from `globals.css` instead of next/font to allow

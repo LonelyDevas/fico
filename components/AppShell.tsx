@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { installViewportFix } from '@/utils/viewport-fix';
+import { registerServiceWorker } from '@/utils/register-sw';
 import { IonApp, IonContent, IonPage, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import { Route, Redirect, useLocation } from 'react-router-dom';
@@ -122,6 +123,7 @@ function AppShellInner() {
 
 export default function AppShell() {
   useEffect(() => installViewportFix(), []);
+  useEffect(() => registerServiceWorker(), []);
   return (
     <Providers>
       <IonApp>

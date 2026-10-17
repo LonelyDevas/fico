@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { supabase } from '@/utils/supabase-client';
+import { readCachedSession } from '@/lib/local/session';
 
 
 const isSupabaseBackend = process.env.NEXT_PUBLIC_BACKEND === 'supabase';
@@ -94,8 +95,16 @@ export function useSupabaseAuthSync() {
 
     const syncFromSession = async (session: import('@supabase/supabase-js').Session | null) => {
       if (!session) {
-        if (!cancelled) clearAuth();
-        return;
+        // supabase-js comes back empty when the saved token has expired and cannot be renewed
+        // because there is no connection. That is not a sign-out: keep going with the saved
+        // session. (A real sign-out or a revoked session removes it from storage.)
+        const cached = await readCachedSession();
+        if (cached) {
+          session = { user: cached.user, expires_at: cached.expiresAt } as unknown as import('@supabase/supabase-js').Session;
+        } else {
+          if (!cancelled) clearAuth();
+          return;
+        }
       }
 
       const { data: profile } = await supabase
