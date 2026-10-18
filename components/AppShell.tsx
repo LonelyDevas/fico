@@ -10,7 +10,9 @@ import Providers from '@/queries/query-provider';
 import Navbar from '@/components/navbar';
 import { FloatingAgent } from '@/components/floating-agent';
 import { AppBadge } from '@/components/app-badge';
-import { useIsAuthenticated, useAuthLoading } from '@/store/auth-store';
+import { useIsAuthenticated, useAuthLoading, useUser } from '@/store/auth-store';
+import { Capacitor } from '@capacitor/core';
+import { logAppActivity } from '@/queries/user/admin';
 
 import SignInPage from '@/ionic-pages/SignInPage';
 import SignUpPage from '@/ionic-pages/SignUpPage';
@@ -28,6 +30,7 @@ import CategoriesPage from '@/ionic-pages/CategoriesPage';
 import SettingsPage from '@/ionic-pages/SettingsPage';
 import ProfilePage from '@/ionic-pages/ProfilePage';
 import PrivacyPage from '@/ionic-pages/PrivacyPage';
+import AdminPage from '@/ionic-pages/AdminPage';
 import { TransactionsPage } from '@/ionic-pages/TransactionsPage';
 import { WalletsPage } from '@/ionic-pages/WalletsPage';
 
@@ -68,6 +71,7 @@ const GuardedSettings = withAuth(SettingsPage);
 const GuardedProfile = withAuth(ProfilePage);
 const GuardedTransactions = withAuth(TransactionsPage);
 const GuardedWallets = withAuth(WalletsPage);
+const GuardedAdmin = withAuth(AdminPage);
 
 setupIonicReact({
   mode: 'md', // Use Material Design by default, auto-switches on iOS
@@ -78,6 +82,12 @@ function AppShellInner() {
   const hideNav = ['/', '/signin', '/signup', '/onboarding', '/auth/callback', '/privacy'].includes(location.pathname);
   const isAuthenticated = useIsAuthenticated();
   const isAuthLoading = useAuthLoading();
+  const userId = useUser()?._id;
+
+  // One traffic ping per app open (and per account switch).
+  useEffect(() => {
+    if (userId) void logAppActivity(Capacitor.getPlatform());
+  }, [userId]);
 
   return (
     <div className={`h-full flex flex-col bg-background text-foreground${!hideNav ? ' has-bottom-nav' : ''}`}>
@@ -110,6 +120,7 @@ function AppShellInner() {
           <Route exact path="/categories" component={GuardedCategories} />
           <Route exact path="/settings" component={GuardedSettings} />
           <Route exact path="/profile" component={GuardedProfile} />
+          <Route exact path="/admin" component={GuardedAdmin} />
           <Route exact path="/">
             {!isAuthLoading && <Redirect to={isAuthenticated ? '/dashboard' : '/signin'} />}
           </Route>

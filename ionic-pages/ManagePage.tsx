@@ -2,11 +2,12 @@
 
 import { IonPage, IonContent } from '@ionic/react'
 import { Link } from 'react-router-dom'
-import { BarChart3, ChevronRight, CreditCard, HandCoins, LineChart, PieChart, Settings as SettingsIcon, Tag, TrendingUp, type LucideIcon } from 'lucide-react'
+import { BarChart3, ChevronRight, CreditCard, HandCoins, LineChart, PieChart, Settings as SettingsIcon, ShieldCheck, Tag, TrendingUp, type LucideIcon } from 'lucide-react'
 import { PeacockMascot } from '@/components/peacock-mascot'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useBillSummary } from '@/queries/user/bill/bills'
 import { useUser } from '@/store/auth-store'
+import { isAdminEmail } from '@/lib/admin'
 
 interface ManageItem {
   label: string
@@ -52,6 +53,16 @@ export default function ManagePage() {
   const overdue = Number((billSummary?.data as any)?.overdueBills ?? 0)
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
 
+  const groups = isAdminEmail(user?.email)
+    ? [
+        ...MANAGE_GROUPS,
+        {
+          title: 'Admin',
+          items: [{ label: 'Admin', href: '/admin', icon: ShieldCheck, description: 'Users and app traffic', tone: 'bg-primary/10 text-primary' }],
+        },
+      ]
+    : MANAGE_GROUPS
+
   const badge = (href: string) => (href === '/bills' && overdue > 0 ? `${overdue} overdue` : null)
 
   return (
@@ -86,7 +97,7 @@ export default function ManagePage() {
             </div>
           </Link>
 
-          {MANAGE_GROUPS.map((group) => (
+          {groups.map((group) => (
             <section key={group.title} aria-label={group.title}>
               <h2 className="mb-2.5 px-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{group.title}</h2>
               <div className="grid grid-cols-2 gap-3">
