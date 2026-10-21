@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { Archive, MoreHorizontal, Pencil } from 'lucide-react'
 import { investmentType } from '@/components/page/investments/investment-meta'
+import { InstitutionLogo } from '@/components/ui/institution-logo'
+import { matchInstitution } from '@/lib/ph-institutions'
 import type { InvestmentAction } from '@/components/page/investments/investment-action-sheet'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
-import { coinLabel } from '@/utils/crypto-prices'
+import { coinLabel, coinLogoSrc } from '@/utils/crypto-prices'
 import type { LiveHolding } from '@/queries/crypto/prices'
 import type { Investment } from '@/types/investment'
 
@@ -25,6 +27,8 @@ export function InvestmentCard({ investment, live, hideAmounts, onAction, onEdit
   const { currency } = useSettingsStore()
   const [menu, setMenu] = useState(false)
   const meta = investmentType(investment.type)
+  const coinLogo = investment.type === 'crypto' ? coinLogoSrc(investment.coinId, investment.coinSymbol) : undefined
+  const platform = matchInstitution(investment.platform)
   const money = (value: number) => formatMoney(value, investment.currency || currency, hideAmounts)
 
   const principal = Number(investment.principalAmount) || 0
@@ -38,9 +42,13 @@ export function InvestmentCard({ investment, live, hideAmounts, onAction, onEdit
   return (
     <article className={`rounded-3xl border border-border bg-card p-4 shadow-ios ${sold ? 'opacity-70' : ''}`}>
       <div className="flex items-start gap-3">
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: meta.color }}>
-          <meta.icon className="h-5 w-5" />
-        </span>
+        <InstitutionLogo
+          institution={platform}
+          src={coinLogo}
+          fallbackColor={meta.color}
+          fallback={<meta.icon className="h-5 w-5" />}
+          className="size-11 rounded-2xl"
+        />
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-base font-semibold text-foreground">{investment.name}</h3>
           <p className="truncate text-xs text-muted-foreground">
