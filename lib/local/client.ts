@@ -34,6 +34,9 @@ interface Starting {
   ready: Runtime | null
   /** First sign-in on this device: the user's data is still downloading. */
   hydrating: boolean
+  /** Settles once the database is open and it is known whether a first download is needed. */
+  decided: Promise<void>
+  decide: () => void
 }
 
 let current: Starting | null = null
@@ -64,7 +67,9 @@ export async function getRuntime(): Promise<Runtime | null> {
   if (!current) {
     if (failedAt?.userId === session.userId && Date.now() - failedAt.at < RETRY_AFTER_MS) return null
     lastUserId = session.userId
-    const entry: Starting = { userId: session.userId, promise: Promise.resolve(null), ready: null, hydrating: false }
+    let decide = () => {}
+    const decided = new Promise<void>((r) => (decide = r))
+    const entry: Starting = { userId: session.userId, promise: Promise.resolve(null), ready: null, hydrating: false, decided, decide }
     entry.promise = startRuntime(entry, session.email, session.username).then(
       (rt) => {
         if (current === entry) {
@@ -96,7 +101,12 @@ export async function getRuntime(): Promise<Runtime | null> {
   // nothing waits on it. Otherwise the database is only opening, and changes made offline may still be
   // queued in it, so wait for it rather than read or write around them.
   if (current.hydrating) return null
-  return current.promise
+  // Wait for the database to open, but not for a first download that turns out to be needed: a query
+  // made while it was opening would otherwise sit on a loading screen until everything is downloaded.
+  const entry = current
+  await Promise.race([entry.decided, entry.promise])
+  if (entry.hydrating) return null
+  return entry.promise
 }
 
 /** Only one tab may own the on-device database; others talk to the server. */
@@ -141,11 +151,27 @@ async function startRuntime(entry: Starting, email?: string, username?: string):
       // queries to the server.
       if (navigator.onLine === false) throw new Error('First sync needs a connection.')
       entry.hydrating = true
-      syncStatus.set({ preparing: true, error: null })
+      // Remembered outside the database: if it says the download finished but the database has no
+      // trace of it, the device cleared the offline copy (storage eviction), which the badge says.
+      const readyKey = `fico-offline-ready:${userId}`
+      let copyLost = false
+      try {
+        copyLost = localStorage.getItem(readyKey) === local.dataDir
+      } catch {
+        // storage unavailable
+      }
+      entry.decide()
+      if (copyLost) console.warn('[offline] the device cleared the offline copy; downloading it again')
+      syncStatus.set({ preparing: true, copyLost, error: null })
       try {
         await sync.hydrate()
       } finally {
-        syncStatus.set({ preparing: false })
+        syncStatus.set({ preparing: false, progress: null })
+      }
+      try {
+        localStorage.setItem(readyKey, local.dataDir)
+      } catch {
+        // storage unavailable
       }
       sync.start()
       // Changes the user made on the server during the download: fetch them before reads switch over.

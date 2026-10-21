@@ -330,7 +330,11 @@ export class SyncEngine {
     }
 
     if (eachTable) {
+      let done = 0
+      syncStatus.set({ progress: { done, total: tables.length } })
       for (const table of tables) {
+        if (done > 0) syncStatus.set({ progress: { done, total: tables.length } })
+        done++
         let change: Incoming | null
         try {
           change = await this.download(table, refreshAll)

@@ -13,7 +13,7 @@ import { syncStatus, useSyncStatus } from '@/lib/local/status'
  * the server refused are shown once as a toast.
  */
 export function SyncStatusBadge() {
-  const { active, preparing, online, pending, stalled, syncing, failures, error } = useSyncStatus()
+  const { active, preparing, progress, copyLost, online, pending, stalled, syncing, failures, error } = useSyncStatus()
 
   useEffect(() => {
     if (failures.length === 0) return
@@ -25,8 +25,11 @@ export function SyncStatusBadge() {
     // Before the offline copy is ready the app works from the server; say so only when it matters.
     // A first download that failed while online says so too (tap for the reason), or it would quietly
     // start over on every launch.
+    const step = progress && progress.done > 0 ? ` ${progress.done}/${progress.total}` : ''
     const note = preparing
-      ? 'Saving your data for offline use…'
+      ? copyLost
+        ? `This device cleared its offline copy · saving it again…${step}`
+        : `Saving your data for offline use…${step}`
       : error
         ? online
           ? 'Couldn’t save your data for offline use'
