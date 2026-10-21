@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -21,7 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useCreateCategory, useListCategories, useUpdateCategory } from '@/queries/user/category/categories'
+import {
+  useBaselineExcludedCategoryIds,
+  useCreateCategory,
+  useListCategories,
+  useSetCategoryExcludeFromBaseline,
+  useUpdateCategory,
+} from '@/queries/user/category/categories'
 import { Loader2 } from 'lucide-react'
 
 const categorySchema = z.object({
@@ -29,6 +36,7 @@ const categorySchema = z.object({
   type: z.enum(['income', 'expense']),
   color: z.string().optional(),
   icon: z.string().optional(),
+  excludeFromBaseline: z.boolean().optional(),
 })
 
 type CategoryFormValues = z.infer<typeof categorySchema>
@@ -45,7 +53,10 @@ export default function CategoryModal({ open, onClose, category }: { open: boole
   const { refetch } = useListCategories()
   const { mutate: createCategory, isPending } = useCreateCategory()
   const { mutate: updateCategory, isPending: isUpdating } = useUpdateCategory()
+  const { data: excludedIds = [] } = useBaselineExcludedCategoryIds()
+  const { mutate: setExcludeFromBaseline } = useSetCategoryExcludeFromBaseline()
   const isEdit = !!category
+  const wasExcluded = !!category && excludedIds.includes(category.id)
   
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -66,6 +77,7 @@ export default function CategoryModal({ open, onClose, category }: { open: boole
         type: category.type || 'expense',
         color: category.color || '#6366f1',
         icon: category.icon || '📂',
+        excludeFromBaseline: wasExcluded,
       })
       return
     }
@@ -75,11 +87,19 @@ export default function CategoryModal({ open, onClose, category }: { open: boole
       type: 'expense',
       color: '#6366f1',
       icon: '📂',
+      excludeFromBaseline: false,
     })
-  }, [open, category, form])
+  }, [open, category, form, wasExcluded])
+
+  // Saved separately from the category itself, so it also works for the default categories.
+  const saveExcludeFromBaseline = (id: string | undefined, data: CategoryFormValues, current: boolean) => {
+    const exclude = data.type === 'expense' && !!data.excludeFromBaseline
+    if (id && exclude !== current) setExcludeFromBaseline({ id, exclude })
+  }
 
   const onSubmit = (data: CategoryFormValues) => {
     if (isEdit && category) {
+      saveExcludeFromBaseline(category.id, data, wasExcluded)
       updateCategory({
         id: category.id,
         name: data.name,
@@ -99,8 +119,9 @@ export default function CategoryModal({ open, onClose, category }: { open: boole
       return
     }
 
-    createCategory(data, {
-      onSuccess: () => {
+    createCategory({ name: data.name, type: data.type, color: data.color, icon: data.icon }, {
+      onSuccess: (response) => {
+        saveExcludeFromBaseline(response?.data?.id, data, false)
         toast.success('Category created successfully')
         refetch()
         form.reset()
@@ -182,6 +203,21 @@ export default function CategoryModal({ open, onClose, category }: { open: boole
               />
             </div>
           </div>
+
+          {form.watch('type') === 'expense' && (
+            <div className="bg-secondary/20 p-4 rounded-xl border border-border/50">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Leave out of baseline</p>
+                  <p className="text-xs text-muted-foreground">For spending that isn&apos;t part of a normal month, like travel or ATM cash.</p>
+                </div>
+                <Switch
+                  checked={!!form.watch('excludeFromBaseline')}
+                  onCheckedChange={(checked) => form.setValue('excludeFromBaseline', checked)}
+                />
+              </div>
+            </div>
+          )}
 
           <SheetFooter className="px-0 pt-4 border-t-0">
             <Button type="button" variant="ghost" onClick={onClose} disabled={isPending || isUpdating}>

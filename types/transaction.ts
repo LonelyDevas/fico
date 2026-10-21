@@ -44,6 +44,8 @@ export type UpdateTransactionData = {
   attachments?: string[];
   tags?: string[];
   status?: TransactionStatus;
+  /** Leaves a one-off out of baseline spending (forecasts and the Claude connector). */
+  excludeFromBaseline?: boolean;
 };
 
 export type DeleteTransactionData = {

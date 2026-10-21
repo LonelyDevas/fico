@@ -17,8 +17,8 @@ if (!existsSync(MIGRATIONS)) {
 }
 
 // Server-only pieces: admin/staff tables, row level security, Supabase Storage, push subscriptions,
-// and account reset/delete (these touch auth.users and stay online-only).
-const SKIP = [/^0010_/, /^0011_/, /^0024_/, /^0034_/, /^0039_/]
+// account reset/delete and the admin dashboard (these touch auth.users and stay online-only).
+const SKIP = [/^0010_/, /^0011_/, /^0024_/, /^0034_/, /^0039_/, /^0048_/]
 // Statements the browser database can't or shouldn't run.
 // is_maintenance_mode and the AI cache are server-only (maintenance table, finance_agent_cache).
 const DROP_STATEMENT = [/pg_cron/i, /cron.schedule/i, /create extension/i, /is_maintenance_mode/i, /reports_top_category_today/i, /finance_agent_cache/i]
