@@ -23,6 +23,7 @@ const SYNCED_TABLES = [
   'obligations',
   'investments',
   'investment_value_snapshots',
+  'goals',
 ]
 
 const PAGE = 1000
@@ -245,6 +246,8 @@ export class SyncEngine {
     for (const table of tables) {
       const hasUpdatedAt = this.local.engine.catalog.tablesWithUpdatedAt.has(table)
       const remoteIndex = await this.remoteIndex(table, hasUpdatedAt)
+      // A table the server doesn't have yet (app released before its migration): leave it alone.
+      if (!remoteIndex) continue
       const localIndex = await this.localIndex(table, hasUpdatedAt)
 
       const wanted: string[] = []
@@ -286,7 +289,7 @@ export class SyncEngine {
    * id -> change stamp. Tables without updated_at (investment_value_snapshots) are insert-only, so
    * an id seen on both sides is treated as unchanged.
    */
-  private async remoteIndex(table: string, hasUpdatedAt: boolean): Promise<Map<string, string>> {
+  private async remoteIndex(table: string, hasUpdatedAt: boolean): Promise<Map<string, string> | null> {
     const index = new Map<string, string>()
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await this.remote
@@ -294,6 +297,7 @@ export class SyncEngine {
         .select(hasUpdatedAt ? 'id, updated_at' : 'id')
         .order('id', { ascending: true })
         .range(from, from + PAGE - 1)
+      if (error?.code === 'PGRST205' || error?.code === '42P01') return null
       if (error) throw new Error(`${table}: ${error.message}`)
       const rows = (data as unknown as Array<{ id: string; updated_at?: string }>) ?? []
       for (const r of rows) index.set(r.id, hasUpdatedAt ? String(new Date(r.updated_at as string).getTime()) : '')
