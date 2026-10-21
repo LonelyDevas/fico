@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, Delete, Plus, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
@@ -120,12 +120,29 @@ export function QuickAddSheet({
   const sourceWallets = type === 'expense' ? wallets.filter((w) => w.type !== 'savings') : wallets
   const savingsHidden = wallets.length - sourceWallets.length
 
-  // Fall back to the first wallet when nothing (or a stale wallet) was remembered.
+  // Fall back to the first wallet when nothing (or a stale wallet) was remembered. This runs in the
+  // same commit as the reset above, so it checks the wallet that reset just chose (`current`), not
+  // the one this render saw, or a pre-filled wallet like "Cash" would be swapped for the first one.
   useEffect(() => {
     if (!open || wallets.length === 0) return
     const ids = sourceWallets.map(walletIdOf)
-    if (ids.length > 0 && !ids.includes(walletId)) setWalletId(ids[0])
+    if (ids.length > 0) setWalletId((current) => (ids.includes(current) ? current : ids[0]))
   }, [open, sourceWallets, walletId])
+
+  // Bring the chosen wallet and category chips into view, so a pre-filled pick isn't hidden off the row's edge.
+  const bodyRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const frame = requestAnimationFrame(() => {
+      bodyRef.current?.querySelectorAll<HTMLElement>('[data-selected="true"]').forEach((el) => {
+        const row = el.parentElement
+        if (!row) return
+        const offset = el.getBoundingClientRect().left - row.getBoundingClientRect().left
+        row.scrollLeft += offset - (row.clientWidth - el.clientWidth) / 2
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open, walletId, categoryId, type])
 
   const amount = parseFloat(digits) || 0
   const fee = feeOn ? parseFloat(feeText) || 0 : 0
@@ -254,7 +271,7 @@ export function QuickAddSheet({
             </button>
           </div>
 
-          <div data-vaul-no-drag className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-3">
+          <div ref={bodyRef} data-vaul-no-drag className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 pb-3">
             <div role="group" aria-label="Transaction type" className="grid grid-cols-3 gap-1 rounded-full bg-secondary p-1">
               {TYPES.map((option) => (
                 <button
@@ -289,7 +306,7 @@ export function QuickAddSheet({
                   {sourceWallets.map((wallet, index) => {
                     const id = walletIdOf(wallet, index)
                     return (
-                      <button key={id} type="button" onClick={() => selectWallet(id)} className={chip(walletId === id)}>
+                      <button key={id} type="button" data-selected={walletId === id} onClick={() => selectWallet(id)} className={chip(walletId === id)}>
                         {wallet.name || 'Wallet'}
                         <span className="ml-1.5 text-xs opacity-70">
                           {wallet.type === 'credit_card' && wallet.creditLimit
@@ -318,7 +335,7 @@ export function QuickAddSheet({
                     destinations.map((wallet) => {
                       const id = walletIdOf(wallet, wallets.indexOf(wallet))
                       return (
-                        <button key={id} type="button" onClick={() => setToWalletId(id)} className={chip(toWalletId === id)}>
+                        <button key={id} type="button" data-selected={toWalletId === id} onClick={() => setToWalletId(id)} className={chip(toWalletId === id)}>
                           {wallet.name || 'Wallet'}
                         </button>
                       )
@@ -339,6 +356,7 @@ export function QuickAddSheet({
                         <button
                           key={id}
                           type="button"
+                          data-selected={categoryId === id}
                           onClick={() => setCategoryId(categoryId === id ? '' : id)}
                           className={chip(categoryId === id)}
                         >
