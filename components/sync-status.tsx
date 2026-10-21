@@ -8,11 +8,12 @@ import { syncStatus, useSyncStatus } from '@/lib/local/status'
 
 /**
  * A small pill at the top of the screen that only appears when there is something to know:
- * the device is offline, or changes are still on their way to the server. Changes the server
- * refused are shown once as a toast.
+ * the device is offline, or changes couldn't reach the server. Changes are saved on the device the
+ * moment they're made and sync quietly behind the scenes, so a normal sync shows nothing. Changes
+ * the server refused are shown once as a toast.
  */
 export function SyncStatusBadge() {
-  const { active, preparing, online, pending, syncing, failures, error } = useSyncStatus()
+  const { active, preparing, online, pending, stalled, syncing, failures, error } = useSyncStatus()
 
   useEffect(() => {
     if (failures.length === 0) return
@@ -37,7 +38,7 @@ export function SyncStatusBadge() {
       </div>
     )
   }
-  if (online && pending === 0) return null
+  if (online && (pending === 0 || !stalled)) return null
 
   const label = !online
     ? pending > 0

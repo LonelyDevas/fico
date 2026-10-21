@@ -186,7 +186,7 @@ export async function teardown(wipe: boolean): Promise<void> {
   if (wipe && pending === 0) await runtime.local.destroy()
   else await runtime.local.close().catch(() => {})
   runtime.release()
-  syncStatus.set({ active: false, pending: 0 })
+  syncStatus.set({ active: false, pending: 0, stalled: false })
 }
 
 const applyCalls = <T>(start: T, calls: Call[]): T => {

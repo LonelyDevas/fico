@@ -17,6 +17,8 @@ export interface SyncStatus {
   syncing: boolean
   /** Changes made on this device that are not on the server yet. */
   pending: number
+  /** The last sync ended with changes still waiting (server unreachable, or a table it doesn't have yet). */
+  stalled: boolean
   failures: SyncFailure[]
   lastSyncedAt: number | null
   /** Set when the server rejected the sync for a reason other than being offline. */
@@ -29,6 +31,7 @@ const initial: SyncStatus = {
   online: true,
   syncing: false,
   pending: 0,
+  stalled: false,
   failures: [],
   lastSyncedAt: null,
   error: null,
