@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "node scripts/copy-ocr-assets.mjs && node scripts/build-local-schema.mjs",
+    "prebuild": "node scripts/copy-ocr-assets.mjs && node scripts/build-local-schema.mjs && node scripts/fetch-bank-logos.mjs",
     "build": "next build --webpack",
     "predev": "node scripts/copy-ocr-assets.mjs && node scripts/build-local-schema.mjs",
     "dev": "next dev --webpack",
