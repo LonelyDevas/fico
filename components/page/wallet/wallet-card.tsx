@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
 import { InstitutionLogo } from '@/components/ui/institution-logo'
-import { getInstitution } from '@/lib/ph-institutions'
+import { getInstitution, matchInstitution } from '@/lib/ph-institutions'
 
 interface WalletCardProps {
   id: string
@@ -88,7 +88,8 @@ export function WalletCard({
 
   const hidden = hideAmounts ?? hiddenLocal
   const money = (value: number) => formatMoney(value, currency, hidden)
-  const known = getInstitution(institution)
+  // Older wallets have no institution set, so guess it from the name ("GCash", "BPI Savings").
+  const known = getInstitution(institution) ?? matchInstitution(name)
   const TypeIcon = TYPE_ICON[type]
   const archived = status === 'archived'
 

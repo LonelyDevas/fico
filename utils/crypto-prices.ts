@@ -76,6 +76,15 @@ const writeCache = (value: Cached) => {
 export const coinLabel = (id?: string | null, symbol?: string | null) =>
   symbol || COINS.find((c) => c.id === id)?.symbol || (id ?? '').toUpperCase()
 
+// Tickers with a bundled icon in public/coins/ (from @web3icons/core, MIT).
+const COIN_LOGOS = new Set(COINS.map((c) => c.symbol).filter((s) => s !== 'ZRO' && s !== 'ARB'))
+
+/** Bundled icon for a coin from the list above, if there is one. */
+export const coinLogoSrc = (id?: string | null, symbol?: string | null) => {
+  const ticker = coinLabel(id, symbol)
+  return COIN_LOGOS.has(ticker) ? `/coins/${ticker.toLowerCase()}.svg` : undefined
+}
+
 /** Prices for the given CoinGecko ids in one currency. Falls back to the last known prices if the request fails. */
 export async function fetchCoinPrices(ids: string[], currency: string): Promise<CoinPrices> {
   const vs = currency.toLowerCase()
