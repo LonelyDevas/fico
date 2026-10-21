@@ -140,6 +140,54 @@ check('duplicate replay ignored', again.data?.duplicate === true, again)
   sync2.stop()
 }
 
+// A server whose migrations are behind the app: it has no planned_items table yet.
+{
+  let lacksPlanned = true
+  let walletsDown = false
+  const missing = { data: null, error: { code: 'PGRST205', message: "Could not find the table 'public.planned_items' in the schema cache", details: '', hint: '' }, count: null, status: 404, statusText: 'Not Found' }
+  const broken = { data: null, error: { code: 'XX000', message: 'wallets: internal error', details: '', hint: '' }, count: null, status: 500, statusText: 'Internal Server Error' }
+  const behind = {
+    ...remote,
+    from: (t: string) =>
+      recordingBuilder([], (c) =>
+        t === 'planned_items' && lacksPlanned ? Promise.resolve(missing) : t === 'wallets' && walletsDown ? Promise.resolve(broken) : server.execute('table', t, c)
+      ),
+  } as unknown as SupabaseClient
+  syncStatus.dismissFailures()
+  const local3 = await LocalDatabase.open({ userId: UID, email: 'a@b.c', username: 'tester', factory: async () => new PGlite() })
+  const sync3 = new SyncEngine(local3, behind)
+  const done = await sync3.hydrate().then(() => true, (e) => e)
+  check('first download finishes when the server lacks a table', done === true && (await local3.meta('last_pull_at')) !== null, String(done))
+  check('the other tables are copied', (await snapshot(local3.db)) === (await snapshot(serverDb)))
+
+  const L3 = (t: string) => recordingBuilder([], (c) => local3.engine.execute('table', t, c)) as any // eslint-disable-line @typescript-eslint/no-explicit-any
+  const today = new Date().toISOString().slice(0, 10)
+  const planned = await L3('planned_items').insert({ name: 'Bonus', type: 'income', amount_low: 100, amount_high: 200, date: today }).select().single()
+  await L3('planned_items').update({ amount_high: 300 }).eq('id', planned.data.id)
+  const wal3 = await L3('wallets').insert({ name: 'Savings', type: 'bank', balance: 50 }).select().single()
+  await sync3.request()
+  const onServer = (await serverDb.query(`select 1 from public.wallets where id = $1`, [wal3.data.id])).rows.length
+  check('other changes still upload past one for a missing table', onServer === 1 && (await local3.pendingCount()) === 2, { onServer, pending: await local3.pendingCount() })
+  check('the held change stays on the device', (await local3.db.query(`select 1 from public.planned_items where id = $1`, [planned.data.id])).rows.length === 1)
+  check('a held change shows as stalled, not as a failure', syncStatus.get().stalled && syncStatus.get().failures.length === 0, syncStatus.get())
+
+  await S('categories').insert({ name: 'From web', type: 'expense' })
+  walletsDown = true
+  await sync3.request()
+  const gotCategory = (await local3.db.query(`select 1 from public.categories where name = 'From web'`)).rows.length
+  check('one table failing to download does not stop the others', gotCategory === 1, gotCategory)
+  check('the failing table is reported', /wallets/.test(syncStatus.get().error ?? ''), syncStatus.get().error)
+  walletsDown = false
+
+  // The server is migrated: the held changes go up, in order.
+  lacksPlanned = false
+  await sync3.request()
+  const row = (await serverDb.query<{ amount_high: number }>(`select amount_high::float as amount_high from public.planned_items where id = $1`, [planned.data.id])).rows[0]
+  check('held changes upload once the server has the table', row?.amount_high === 300 && (await local3.pendingCount()) === 0, { row, pending: await local3.pendingCount() })
+  check('sync is no longer stalled', !syncStatus.get().stalled && syncStatus.get().error === null, syncStatus.get())
+  sync3.stop()
+}
+
 sync.stop()
 console.log(failures ? `${failures} FAILURES` : 'ALL PASSED')
 process.exit(failures ? 1 : 0)

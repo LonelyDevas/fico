@@ -4,6 +4,10 @@
 //     order it was made, through sync_replay() (migration 0047) so rows keep the ids the device chose.
 //  2. Pull: once nothing is waiting, the server's rows replace the local ones. The server wins, so a
 //     change that was rejected, or touched by another device, ends up matching the server.
+//
+// Every table syncs on its own: one the server doesn't have yet (an app update that is ahead of the
+// server's migrations) or one that fails to download is skipped, and the rest still sync. Changes to a
+// table the server doesn't have are held on the device and sent once it does.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { LocalDatabase } from './database'
 import type { Call } from './engine'
@@ -42,7 +46,20 @@ interface RemoteError {
   code?: string
 }
 
-type Outcome = 'ok' | 'retry' | 'failed'
+type Outcome = 'ok' | 'retry' | 'failed' | 'held'
+
+interface Incoming {
+  upserts: Record<string, unknown>[]
+  deletes: string[]
+}
+
+/** A download error, with the code the server gave so callers can tell what kind it was. */
+const remoteError = (table: string, error: RemoteError) =>
+  Object.assign(new Error(`${table}: ${error.message ?? 'download failed'}`), { code: error.code })
+
+/** The server has no such table (its migrations are behind the app). */
+const isMissingTable = (error: RemoteError | null | undefined) =>
+  error?.code === 'PGRST205' || error?.code === '42P01'
 
 const looksOffline = (e: RemoteError | null | undefined) =>
   /failed to fetch|network|load failed|fetch failed|timeout|timed out|aborted/i.test(e?.message ?? '')
@@ -65,6 +82,8 @@ export class SyncEngine {
   private interval: ReturnType<typeof setInterval> | null = null
   private cleanups: Array<() => void> = []
   private stopped = false
+  /** Tables the server doesn't have yet: not downloaded, and their changes wait on the device. */
+  private missing = new Set<string>()
 
   constructor(
     private readonly local: LocalDatabase,
@@ -149,11 +168,13 @@ export class SyncEngine {
         this.again = false
         if (typeof navigator !== 'undefined' && navigator.onLine === false) break
         syncStatus.set({ syncing: true })
-        const drained = await this.push()
-        if (drained === 'done') await this.pull()
+        const pushed = await this.push()
+        // Changes held for a table the server lacks don't stop the other tables from coming down.
+        if (pushed !== 'stopped') await this.pull()
+        syncStatus.set({ stalled: pushed !== 'done' })
       } while (this.again && !this.stopped)
     } catch (e) {
-      syncStatus.set({ error: e instanceof Error ? e.message : 'Sync failed' })
+      syncStatus.set({ error: e instanceof Error ? e.message : 'Sync failed', stalled: true })
     } finally {
       this.running = false
       syncStatus.set({ syncing: false })
@@ -171,17 +192,27 @@ export class SyncEngine {
 
   // --- push ---------------------------------------------------------------------------------------
 
-  private async push(): Promise<'done' | 'stopped'> {
+  /** 'held' means everything went up except changes to tables the server doesn't have yet. */
+  private async push(): Promise<'done' | 'held' | 'stopped'> {
+    let after = 0
+    let held = false
     for (;;) {
       if (this.stopped) return 'stopped'
       const res = await this.local.db.query<OutboxEntry>(
-        `select seq, op_id, kind, payload, ids from public._sync_outbox where status = 'pending' order by seq limit 1`
+        `select seq, op_id, kind, payload, ids from public._sync_outbox where status = 'pending' and seq > $1 order by seq limit 1`,
+        [after]
       )
       const entry = res.rows[0]
-      if (!entry) return 'done'
+      if (!entry) return held ? 'held' : 'done'
 
       const outcome = await this.replay(entry)
       if (outcome === 'retry') return 'stopped'
+      if (outcome === 'held') {
+        // Stays queued, in order, behind any earlier change to the same table.
+        held = true
+        after = entry.seq
+        continue
+      }
       // Applied, or refused for good (already reported to the user): either way it leaves the queue.
       await this.local.db.query(`delete from public._sync_outbox where seq = $1`, [entry.seq])
       await this.refreshPending()
@@ -208,11 +239,16 @@ export class SyncEngine {
       }
 
       const { table = '', calls = [] } = entry.payload
+      if (this.missing.has(table)) return 'held'
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query: any = this.remote.from(table)
       for (const [method, args] of calls) query = query[method](...args)
       const { error, status } = await query
       if (!error) return 'ok'
+      if (isMissingTable(error)) {
+        this.missing.add(table)
+        return 'held'
+      }
       // Already there (a retry after the reply was lost): same as success.
       if (error.code === '23505' && calls.some(([m]) => m === 'insert')) return 'ok'
       if (isRetryable(error, status)) return 'retry'
@@ -236,36 +272,58 @@ export class SyncEngine {
   /**
    * Replaces local rows with the server's. Returns true when anything changed. Normally every table is
    * applied in one transaction; `eachTable` saves each one as soon as it arrives (first download).
+   *
+   * A table that fails to download is skipped and the others still apply. On a first download that
+   * leaves the copy incomplete, so it throws at the end and the next attempt fetches what is missing.
    */
   async pull(eachTable = false): Promise<boolean> {
     if (this.stopped) return false
     const tables = SYNCED_TABLES.filter((t) => this.local.engine.hasTable(t))
-    const incoming: Record<string, { upserts: Record<string, unknown>[]; deletes: string[] }> = {}
+    const incoming: Record<string, Incoming> = {}
+    const failed: string[] = []
     let changedAny = false
 
-    for (const table of tables) {
-      const hasUpdatedAt = this.local.engine.catalog.tablesWithUpdatedAt.has(table)
-      const remoteIndex = await this.remoteIndex(table, hasUpdatedAt)
-      const localIndex = await this.localIndex(table, hasUpdatedAt)
+    // A failed table is skipped, unless the device went offline: then nothing else gets through either.
+    const settle = (table: string, e: unknown) => {
+      const err = e as RemoteError
+      if (looksOffline(err) || (typeof navigator !== 'undefined' && navigator.onLine === false)) throw e
+      if (isMissingTable(err)) this.missing.add(table)
+      else failed.push(err.message ?? table)
+    }
+    const arrived = (table: string) => {
+      // The server has it now: changes held for it can go up on the next round.
+      if (this.missing.delete(table)) this.again = true
+    }
 
-      const wanted: string[] = []
-      for (const [id, stamp] of remoteIndex) if (localIndex.get(id) !== stamp) wanted.push(id)
-      const deletes = [...localIndex.keys()].filter((id) => !remoteIndex.has(id))
-      if (wanted.length === 0 && deletes.length === 0) continue
-
-      const upserts: Record<string, unknown>[] = []
-      for (let i = 0; i < wanted.length; i += FETCH_CHUNK) {
-        const { data, error } = await this.remote.from(table).select('*').in('id', wanted.slice(i, i + FETCH_CHUNK))
-        if (error) throw new Error(`${table}: ${error.message}`)
-        upserts.push(...((data as Record<string, unknown>[]) ?? []))
-      }
-      if (eachTable) {
-        if (!(await this.applyIncoming({ [table]: { upserts, deletes } }))) {
+    if (eachTable) {
+      for (const table of tables) {
+        let change: Incoming | null
+        try {
+          change = await this.download(table)
+        } catch (e) {
+          settle(table, e)
+          continue
+        }
+        arrived(table)
+        if (!change) continue
+        if (!(await this.applyIncoming({ [table]: change }))) {
           this.again = true
           return false
         }
         changedAny = true
-      } else incoming[table] = { upserts, deletes }
+      }
+      if (failed.length) throw new Error(failed[0])
+    } else {
+      // Tables download side by side, so a sync takes about as long as its slowest table.
+      const results = await Promise.allSettled(tables.map((t) => this.download(t)))
+      results.forEach((r, i) => {
+        const table = tables[i]
+        if (r.status === 'rejected') settle(table, r.reason)
+        else {
+          arrived(table)
+          if (r.value) incoming[table] = r.value
+        }
+      })
     }
 
     const changed = changedAny || Object.keys(incoming).length > 0
@@ -278,9 +336,29 @@ export class SyncEngine {
       }
     }
     await this.local.setMeta('last_pull_at', Date.now())
-    syncStatus.set({ lastSyncedAt: Date.now(), error: null })
+    syncStatus.set({ lastSyncedAt: Date.now(), error: failed[0] ?? null })
     if (changed) notifyLocalDataChanged()
     return changed
+  }
+
+  /** What has to change locally to match the server's copy of `table`, or null when nothing does. */
+  private async download(table: string): Promise<Incoming | null> {
+    const hasUpdatedAt = this.local.engine.catalog.tablesWithUpdatedAt.has(table)
+    const remoteIndex = await this.remoteIndex(table, hasUpdatedAt)
+    const localIndex = await this.localIndex(table, hasUpdatedAt)
+
+    const wanted: string[] = []
+    for (const [id, stamp] of remoteIndex) if (localIndex.get(id) !== stamp) wanted.push(id)
+    const deletes = [...localIndex.keys()].filter((id) => !remoteIndex.has(id))
+    if (wanted.length === 0 && deletes.length === 0) return null
+
+    const upserts: Record<string, unknown>[] = []
+    for (let i = 0; i < wanted.length; i += FETCH_CHUNK) {
+      const { data, error } = await this.remote.from(table).select('*').in('id', wanted.slice(i, i + FETCH_CHUNK))
+      if (error) throw remoteError(table, error)
+      upserts.push(...((data as Record<string, unknown>[]) ?? []))
+    }
+    return { upserts, deletes }
   }
 
   /**
@@ -295,7 +373,7 @@ export class SyncEngine {
         .select(hasUpdatedAt ? 'id, updated_at' : 'id')
         .order('id', { ascending: true })
         .range(from, from + PAGE - 1)
-      if (error) throw new Error(`${table}: ${error.message}`)
+      if (error) throw remoteError(table, error)
       const rows = (data as unknown as Array<{ id: string; updated_at?: string }>) ?? []
       for (const r of rows) index.set(r.id, hasUpdatedAt ? String(new Date(r.updated_at as string).getTime()) : '')
       if (rows.length < PAGE) return index
@@ -310,9 +388,14 @@ export class SyncEngine {
   }
 
   /** Applies downloaded rows in one transaction. Returns false (and applies nothing) if changes were queued meanwhile. */
-  private async applyIncoming(incoming: Record<string, { upserts: Record<string, unknown>[]; deletes: string[] }>): Promise<boolean> {
+  private async applyIncoming(incoming: Record<string, Incoming>): Promise<boolean> {
     return this.local.db.transaction(async (tx) => {
-      const pending = await tx.query<{ n: number }>(`select count(*)::int as n from public._sync_outbox where status = 'pending'`)
+      // Changes held for a table the server lacks don't count: that table isn't being downloaded.
+      const pending = await tx.query<{ n: number }>(
+        `select count(*)::int as n from public._sync_outbox
+          where status = 'pending' and not (kind = 'table' and payload->>'table' = any($1::text[]))`,
+        [[...this.missing]]
+      )
       if ((pending.rows[0]?.n ?? 0) > 0) return false
 
       // Rows arrive in any order and the server already enforced integrity: skip local triggers and foreign keys.
