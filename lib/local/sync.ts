@@ -23,6 +23,7 @@ const SYNCED_TABLES = [
   'obligations',
   'investments',
   'investment_value_snapshots',
+  'planned_items',
   'goals',
 ]
 

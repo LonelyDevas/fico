@@ -2,7 +2,7 @@
 
 import { IonPage, IonContent } from '@ionic/react'
 import { Link } from 'react-router-dom'
-import { BarChart3, ChevronRight, CreditCard, HandCoins, LineChart, PieChart, PiggyBank, Settings as SettingsIcon, ShieldCheck, Tag, TrendingUp, type LucideIcon } from 'lucide-react'
+import { BarChart3, CalendarClock, ChevronRight, CreditCard, HandCoins, LineChart, PieChart, PiggyBank, Settings as SettingsIcon, ShieldCheck, Tag, TrendingUp, type LucideIcon } from 'lucide-react'
 import { PeacockMascot } from '@/components/peacock-mascot'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { useBillSummary } from '@/queries/user/bill/bills'
@@ -30,6 +30,7 @@ const MANAGE_GROUPS: ManageGroup[] = [
       { label: 'Budgets', href: '/budgets', icon: PieChart, description: 'Spending limits', tone: 'bg-primary/10 text-primary' },
       { label: 'Goals', href: '/goals', icon: PiggyBank, description: 'Save toward a target', tone: 'bg-success/15 text-success' },
       { label: 'Bills', href: '/bills', icon: CreditCard, description: 'What is due and when', tone: 'bg-warning/15 text-warning' },
+      { label: 'Planned', href: '/planned', icon: CalendarClock, description: 'One-offs you expect', tone: 'bg-accent/15 text-accent' },
       { label: 'Debts & loans', href: '/debts', icon: HandCoins, description: 'Borrowed and lent', tone: 'bg-destructive/10 text-destructive' },
       { label: 'Investments', href: '/investments', icon: TrendingUp, description: 'How your money grows', tone: 'bg-success/15 text-success' },
     ],
