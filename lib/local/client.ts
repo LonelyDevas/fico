@@ -109,6 +109,26 @@ export async function getRuntime(): Promise<Runtime | null> {
   return entry.promise
 }
 
+/**
+ * A page still running an older deploy asks for its own build of the database code, which the new
+ * deploy no longer has ("Loading chunk … failed"). An installed app is often resumed rather than
+ * reloaded, so it would stay without offline storage: reload it onto the current deploy, at most
+ * once every few minutes so a chunk that can't load for another reason doesn't loop.
+ */
+function reloadIfStale(e: unknown) {
+  const message = e instanceof Error ? `${e.name} ${e.message}` : String(e)
+  if (!/ChunkLoadError|Loading chunk .* failed|Failed to fetch dynamically imported module/i.test(message)) return
+  if (navigator.onLine === false) return
+  const key = 'fico-stale-reload-at'
+  try {
+    if (Date.now() - Number(sessionStorage.getItem(key) ?? 0) < 5 * 60_000) return
+    sessionStorage.setItem(key, String(Date.now()))
+  } catch {
+    return
+  }
+  window.location.reload()
+}
+
 /** Only one tab may own the on-device database; others talk to the server. */
 function acquireDbLock(): Promise<(() => void) | null> {
   const locks = (navigator as Navigator & { locks?: LockManager }).locks
@@ -139,7 +159,10 @@ async function startRuntime(entry: Starting, email?: string, username?: string):
 
   let local: LocalDatabase | null = null
   try {
-    const [{ LocalDatabase }, { SyncEngine }] = await Promise.all([import('./database'), import('./sync')])
+    const [{ LocalDatabase }, { SyncEngine }] = await Promise.all([import('./database'), import('./sync')]).catch((e) => {
+      reloadIfStale(e)
+      throw e
+    })
     let sync: SyncEngine | null = null
     local = await LocalDatabase.open({ userId, email, username, onQueued: () => sync?.queued() })
     sync = new SyncEngine(local, real!)
