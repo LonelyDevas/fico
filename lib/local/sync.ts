@@ -319,7 +319,8 @@ export class SyncEngine {
     // A failed table is skipped, unless the device went offline: then nothing else gets through either.
     const settle = (table: string, e: unknown) => {
       const err = e as RemoteError
-      if (looksOffline(err) || (typeof navigator !== 'undefined' && navigator.onLine === false)) throw e
+      // An error the server sent back (it has a code, e.g. a statement timeout) means it was reachable.
+      if ((!err?.code && looksOffline(err)) || (typeof navigator !== 'undefined' && navigator.onLine === false)) throw e
       if (isMissingTable(err)) this.missing.add(table)
       else failed.push(err.message ?? table)
     }
@@ -339,7 +340,14 @@ export class SyncEngine {
         }
         arrived(table)
         if (!change) continue
-        if (!(await this.applyIncoming({ [table]: change }))) {
+        let applied: boolean
+        try {
+          applied = await this.applyIncoming({ [table]: change })
+        } catch (e) {
+          failed.push(`${table}: ${e instanceof Error ? e.message : String(e)}`)
+          continue
+        }
+        if (!applied) {
           this.again = true
           return false
         }
@@ -360,7 +368,23 @@ export class SyncEngine {
 
     const changed = changedAny || Object.keys(incoming).length > 0
     if (Object.keys(incoming).length > 0) {
-      const applied = await this.applyIncoming(incoming)
+      let applied: boolean
+      try {
+        applied = await this.applyIncoming(incoming)
+      } catch {
+        // One table's rows don't fit the device copy: apply the others on their own and report that one.
+        applied = true
+        for (const [table, change] of Object.entries(incoming)) {
+          try {
+            if (!(await this.applyIncoming({ [table]: change }))) {
+              applied = false
+              break
+            }
+          } catch (e) {
+            failed.push(`${table}: ${e instanceof Error ? e.message : String(e)}`)
+          }
+        }
+      }
       if (!applied) {
         // Something was queued while downloading; the server copy is stale for it. Go round again.
         this.again = true
