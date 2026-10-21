@@ -124,6 +124,9 @@ async function startRuntime(entry: Starting, email?: string, username?: string):
   const release = await acquireDbLock()
   if (!release) return null
 
+  // Ask the browser to keep the offline copy rather than clear it when storage runs low.
+  void navigator.storage?.persist?.().catch(() => false)
+
   let local: LocalDatabase | null = null
   try {
     const [{ LocalDatabase }, { SyncEngine }] = await Promise.all([import('./database'), import('./sync')])
@@ -133,8 +136,9 @@ async function startRuntime(entry: Starting, email?: string, username?: string):
 
     const hydrated = await local.meta('last_pull_at')
     if (hydrated === null) {
-      // First run on this device: download everything before the app starts reading from it. Until
-      // then getRuntime() sends queries to the server.
+      // First run on this device (an app update carries the existing copy across, see LocalDatabase.open):
+      // download everything before the app starts reading from it. Until then getRuntime() sends
+      // queries to the server.
       if (navigator.onLine === false) throw new Error('First sync needs a connection.')
       entry.hydrating = true
       syncStatus.set({ preparing: true, error: null })
@@ -147,6 +151,7 @@ async function startRuntime(entry: Starting, email?: string, username?: string):
       // Changes the user made on the server during the download: fetch them before reads switch over.
       await sync.request()
     } else {
+      // Open from what is on the device right away; catching up with the server happens behind it.
       sync.start()
       void sync.request()
     }
