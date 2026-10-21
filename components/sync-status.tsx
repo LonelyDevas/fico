@@ -23,18 +23,27 @@ export function SyncStatusBadge() {
 
   if (!active) {
     // Before the offline copy is ready the app works from the server; say so only when it matters.
+    // A first download that failed while online says so too (tap for the reason), or it would quietly
+    // start over on every launch.
     const note = preparing
       ? 'Saving your data for offline use…'
-      : error && !online
-        ? 'Offline · your data isn’t saved on this device yet'
+      : error
+        ? online
+          ? 'Couldn’t save your data for offline use'
+          : 'Offline · your data isn’t saved on this device yet'
         : null
     if (!note) return null
     return (
       <div className="pointer-events-none fixed inset-x-0 z-[60] flex justify-center px-4" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
-        <div className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-ios">
+        <button
+          type="button"
+          onClick={() => !preparing && error && toast.error(error, { duration: 7000 })}
+          disabled={preparing}
+          className={`${preparing ? 'pointer-events-none' : 'pointer-events-auto'} flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-ios`}
+        >
           {preparing ? <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" /> : <CloudOff className="h-3.5 w-3.5 text-warning" />}
           {note}
-        </div>
+        </button>
       </div>
     )
   }

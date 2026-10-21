@@ -207,6 +207,34 @@ check('duplicate replay ignored', again.data?.duplicate === true, again)
   sync4.stop()
 }
 
+// Rows that don't fit the device copy, or a server error that mentions a timeout, are one table's
+// problem: the first download still finishes and later syncs still bring the other tables down.
+{
+  let badWallets = true
+  const timeout = { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout', details: '', hint: '' }, count: null, status: 500, statusText: 'Internal Server Error' }
+  const odd = {
+    ...remote,
+    from: (t: string) =>
+      recordingBuilder([], async (c) => {
+        if (t === 'bills' && badWallets) return timeout
+        const res = await server.execute('table', t, c)
+        if (t === 'wallets' && badWallets && c.some(([m]) => m === 'in')) return { ...res, data: (res.data as Record<string, unknown>[]).map((r) => ({ ...r, name: null })) }
+        return res
+      }),
+  } as unknown as SupabaseClient
+  const local6 = await LocalDatabase.open({ userId: UID, email: 'a@b.c', username: 'tester', factory: async () => new PGlite() })
+  const sync6 = new SyncEngine(local6, odd)
+  const done = await sync6.hydrate().then(() => true, (e) => e)
+  check('first download finishes past rows that do not fit and a server timeout', done === true && (await local6.meta('last_pull_at')) !== null, String(done))
+  await S('categories').insert({ name: 'Later', type: 'expense' })
+  await sync6.request()
+  check('later syncs still apply the other tables', (await local6.db.query(`select 1 from public.categories where name = 'Later'`)).rows.length === 1)
+  badWallets = false
+  await sync6.request()
+  check('the bad table syncs once its rows fit', (await snapshot(local6.db)) === (await snapshot(serverDb)))
+  sync6.stop()
+}
+
 // An app update with a new schema: the old copy's data moves into the new one, so the app opens from
 // it without downloading again, and the next sync fetches every row once.
 {
