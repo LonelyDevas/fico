@@ -132,7 +132,7 @@ export const useListTransactions = (params?: ListTransactionsParams) => {
 };
 
 // Update Transaction — category/description/date/attachments/tags/status
-// only; amount/type/wallet are structurally excluded (see
+// and the leave-out-of-baseline flag only; amount/type/wallet are structurally excluded (see
 // transactions_update in 0014_rpc_transactions.sql).
 const updateTransaction = async (data: UpdateTransactionData) => {
   if (isSupabase()) {
@@ -144,6 +144,7 @@ const updateTransaction = async (data: UpdateTransactionData) => {
       p_attachments: data.attachments ?? null,
       p_tags: data.tags ?? null,
       p_status: data.status ?? null,
+      p_exclude_from_baseline: data.excludeFromBaseline ?? null,
     });
     if (error) throw error;
     return { message: 'success', data: toCamelCase(row) };

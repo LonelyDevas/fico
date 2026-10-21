@@ -32,6 +32,7 @@ export interface TransactionItem {
   tags?: string[]
   attachments?: string[]
   billId?: string
+  excludeFromBaseline?: boolean
 }
 
 interface TransactionListProps {

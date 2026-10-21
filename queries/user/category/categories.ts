@@ -110,6 +110,44 @@ export const useUpdateCategory = () => {
   });
 };
 
+// Categories left out of baseline spending (travel, ATM cash, one-offs). The list lives on the
+// user's profile rather than on each category, because the default categories are shared rows.
+const getBaselineExcludedCategoryIds = async (): Promise<string[]> => {
+  if (!isSupabase()) return [];
+  const { data, error } = await supabase.from('profiles').select('baseline_excluded_category_ids').maybeSingle();
+  if (error) throw error;
+  return data?.baseline_excluded_category_ids ?? [];
+};
+
+export const useBaselineExcludedCategoryIds = () => {
+  return useQuery({
+    queryKey: ['categories', 'baseline-excluded'],
+    queryFn: () => getBaselineExcludedCategoryIds(),
+    enabled: true,
+  });
+};
+
+const setCategoryExcludeFromBaseline = async (data: { id: string; exclude: boolean }) => {
+  if (!isSupabase()) return { message: 'success' };
+  const { error } = await supabase.rpc('categories_set_exclude_from_baseline', {
+    p_id: data.id,
+    p_exclude: data.exclude,
+  });
+  if (error) throw error;
+  return { message: 'success' };
+};
+
+export const useSetCategoryExcludeFromBaseline = () => {
+  const refreshCategories = useRefreshCategories();
+  return useMutation({
+    onSuccess: refreshCategories,
+    mutationFn: (data: { id: string; exclude: boolean }) => setCategoryExcludeFromBaseline(data),
+    onError: (error) => {
+      handleApiError(error);
+    },
+  });
+};
+
 // Archive Category
 const archiveCategory = async (data: ArchiveCategoryData) => {
   if (isSupabase()) {

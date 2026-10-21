@@ -96,6 +96,7 @@ export function QuickAddSheet({
   const [date, setDate] = useState('')
   const [feeOn, setFeeOn] = useState(false)
   const [feeText, setFeeText] = useState('')
+  const [excludeFromBaseline, setExcludeFromBaseline] = useState(false)
 
   // Start fresh (or from the transaction being edited / pre-filled data) each time it opens.
   useEffect(() => {
@@ -110,6 +111,7 @@ export function QuickAddSheet({
     const fee = source?.serviceFee ?? 0
     setFeeOn(fee > 0)
     setFeeText(fee > 0 ? String(fee) : '')
+    setExcludeFromBaseline(transaction?.excludeFromBaseline ?? false)
     setWalletId(source?.walletId ?? initialWalletId ?? (isEdit ? '' : readLastWallet()))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, transaction?.id])
@@ -191,6 +193,7 @@ export function QuickAddSheet({
         tags: transaction.tags,
         attachments: transaction.attachments,
         status: transaction.status,
+        excludeFromBaseline: type === 'expense' ? excludeFromBaseline : undefined,
       }
       updateTransaction(update, {
         onSuccess: () => finish('Changes saved'),
@@ -399,6 +402,23 @@ export function QuickAddSheet({
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {isEdit && type === 'expense' && (
+              <div>
+                <button
+                  type="button"
+                  aria-pressed={excludeFromBaseline}
+                  onClick={() => setExcludeFromBaseline((v) => !v)}
+                  className={`${chip(excludeFromBaseline)} flex items-center gap-1.5`}
+                >
+                  {!excludeFromBaseline && <Plus className="h-4 w-4" />}
+                  Leave out of baseline
+                </button>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  For one-offs like trips or big purchases, so your normal monthly spending stays accurate.
+                </p>
               </div>
             )}
           </div>
