@@ -28,6 +28,7 @@ const SYNCED_TABLES = [
   'investments',
   'investment_value_snapshots',
   'planned_items',
+  'goals',
 ]
 
 const PAGE = 1000
