@@ -13,6 +13,10 @@ export interface SyncStatus {
   active: boolean
   /** First sign-in on this device: the offline copy is still downloading. */
   preparing: boolean
+  /** Tables finished so far in the first download. */
+  progress: { done: number; total: number } | null
+  /** The first download had finished on this device before, but the device has since cleared the copy. */
+  copyLost: boolean
   online: boolean
   syncing: boolean
   /** Changes made on this device that are not on the server yet. */
@@ -28,6 +32,8 @@ export interface SyncStatus {
 const initial: SyncStatus = {
   active: false,
   preparing: false,
+  progress: null,
+  copyLost: false,
   online: true,
   syncing: false,
   pending: 0,
