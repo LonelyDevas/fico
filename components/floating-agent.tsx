@@ -9,7 +9,9 @@ import { useListWallets } from '@/queries/user/wallet/wallets'
 import { useListCategories } from '@/queries/user/category/categories'
 import { X, Send, Camera, CheckCircle2, ChevronDown, ArrowDownLeft, ArrowUpRight, Shuffle } from 'lucide-react'
 import { CreateTransactionModal } from '@/components/page/transaction/create-transaction-modal'
-import { parseTransactionText } from '@/utils/transaction-parser'
+import { matchCategory, matchWallet, parseReceiptText, parseTransactionText, type ParseContext, type ParsedTransaction } from '@/utils/transaction-parser'
+import { detectIntent } from '@/utils/agent-intent'
+import { answerQuestion, HELP_TEXT } from '@/utils/agent-answers'
 import { frequentTransactionSuggestions } from '@/utils/frequent-transactions'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
@@ -258,7 +260,7 @@ export function FloatingAgent() {
       setMessages([{
         id: 'welcome',
         role: 'agent',
-        content: 'Hi! Tell me about your transaction — type something like "Spent 50 on coffee" or upload a receipt photo 📷',
+        content: 'Hi! Tell me about your transaction in your own words, like "80 lunch cash" or "sahod 25k bdo", or upload a receipt photo 📷',
       }])
     }
   }, [messages.length])
@@ -266,36 +268,36 @@ export function FloatingAgent() {
   // ---------------------------------------------------------------------------
   // Category & wallet matching
   // ---------------------------------------------------------------------------
-  const matchCategoryId = useCallback((inferredName?: string): string | undefined => {
-    if (!inferredName) return undefined
-    const lower = inferredName.toLowerCase()
-    const match = categories.find((c: any) => {
-      const name = (c.name ?? '').toLowerCase()
-      return (
-        name.includes(lower) ||
-        lower.includes(name) ||
-        lower.split(/[&\s]+/).some((word: string) => name.includes(word))
-      )
-    })
+  const recentTransactions: any[] = useMemo(() => {
+    const data = recentTransactionsResponse?.data as any
+    return Array.isArray(data) ? data : data?.items ?? []
+  }, [recentTransactionsResponse])
+
+  // What the parser knows about this user: their wallet and category names, and what they logged lately.
+  const parseContext = useMemo<ParseContext>(() => ({
+    wallets: wallets.filter((w: any) => w.status !== 'archived' && w.name).map((w: any) => ({ name: w.name, type: w.type })),
+    categories: categories.filter((c: any) => c.name).map((c: any) => ({ name: c.name, type: c.type })),
+    history: recentTransactions.map((t: any) => ({
+      description: t.description,
+      type: t.type,
+      amount: t.amount,
+      categoryName: t.category?.name,
+      walletName: t.wallet?.name,
+      toWalletName: t.toWallet?.name,
+    })),
+  }), [wallets, categories, recentTransactions])
+
+  const matchCategoryId = useCallback((inferredName: string | undefined, type: ParsedTransaction['type']): string | undefined => {
+    const match = matchCategory(inferredName, type, categories)
     return match?._id ?? match?.id
   }, [categories])
 
   const matchWalletId = useCallback((walletName?: string): string | undefined => {
-    if (!walletName) return undefined
-    const query = walletName.toLowerCase().trim()
-    // 1. Exact match
-    let m = wallets.find((w: any) => (w.name ?? '').toLowerCase() === query)
-    if (m) return m._id ?? m.id
-    // 2. Wallet name starts with query ("bdo" → "BDO Unibank, Inc")
-    m = wallets.find((w: any) => (w.name ?? '').toLowerCase().startsWith(query))
-    if (m) return m._id ?? m.id
-    // 3. Query starts with wallet name, min 3 chars ("bpi family" → "BPI")
-    m = wallets.find((w: any) => {
-      const name = (w.name ?? '').toLowerCase()
-      return name.length >= 3 && query.startsWith(name)
-    })
-    return m?._id ?? m?.id
+    const match = matchWallet(walletName, wallets)
+    return match?._id ?? match?.id
   }, [wallets])
+
+  const walletNameOf = (id: string) => wallets.find((w: any) => (w._id ?? w.id) === id)?.name as string | undefined
 
   // ---------------------------------------------------------------------------
   // Message helpers
@@ -316,57 +318,98 @@ export function FloatingAgent() {
     setIsProcessing(true)
 
     // Small delay for UX (feels more natural)
-    await new Promise(r => setTimeout(r, 500))
-    const parsed = parseTransactionText(text)
+    await new Promise(r => setTimeout(r, 400))
     setIsProcessing(false)
 
+    switch (detectIntent(text)) {
+      case 'greeting':
+        pushAgent('Hi! What did you spend or receive? Something like "80 lunch cash" works.')
+        return
+      case 'thanks':
+        pushAgent('Anytime! Tell me the next one whenever you\'re ready.')
+        return
+      case 'help':
+        pushAgent(HELP_TEXT)
+        return
+      case 'cancel':
+        setPendingTransaction(null)
+        setShowWalletPicker(false)
+        pushAgent('Okay, cancelled. Nothing was saved.')
+        return
+      case 'question':
+        pushAgent(answerQuestion(text, {
+          wallets,
+          transactions: recentTransactions,
+          complete: recentTransactions.length < 200,
+          categories: parseContext.categories,
+          format: (n) => formatMoney(n, currency, false),
+        }))
+        return
+    }
+
+    const parsed = parseTransactionText(text, parseContext)
+
     if (!parsed.amount || parsed.confidence.amount < 0.5) {
-      pushAgent("I couldn't detect an amount. Try: \"Spent 50 on coffee\" or \"Received 2000 salary\".")
+      const what = parsed.description ? ` for "${parsed.description}"` : ''
+      pushAgent(`How much was it${what}? Try "80 lunch cash", "spent 150 on lunch" or "received 2000 salary".`)
       return
     }
+
+    presentParsed(parsed)
+  }
+
+  /** Shows what was understood, then opens the form, or asks for the wallet when it isn't known. */
+  const presentParsed = (parsed: ParsedTransaction, intro = 'Got it!') => {
+    const type = parsed.type ?? 'expense'
+    const isTransfer = type === 'transfer'
+    const fromId = matchWalletId(parsed.fromWalletName) ?? ''
+    const toId = isTransfer ? matchWalletId(parsed.toWalletName) ?? '' : ''
+    const categoryId = isTransfer ? undefined : matchCategoryId(parsed.inferredCategoryName, type)
+    const categoryName = categoryId ? categories.find((c: any) => (c._id ?? c.id) === categoryId)?.name : undefined
 
     const txData: Partial<CreateTransactionData> = {
       amount: parsed.amount,
       description: parsed.description,
-      type: parsed.type,
+      type,
       date: parsed.date,
-      categoryId: matchCategoryId(parsed.inferredCategoryName),
+      categoryId,
       ...(parsed.serviceFee && { serviceFee: parsed.serviceFee }),
     }
-    const matchedFromId = matchWalletId(parsed.fromWalletName)
-    const matchedToId   = matchWalletId(parsed.toWalletName)
-
     setPendingTransaction(txData)
-    setSelectedWalletId(matchedFromId ?? '')
-    setSelectedToWalletId(matchedToId ?? '')
-    setShowWalletPicker(true)
+    setSelectedWalletId(fromId)
+    setSelectedToWalletId(toId)
 
-    const typeLabel = parsed.type === 'income' ? '💰 income' : parsed.type === 'transfer' ? '🔄 transfer' : '💸 expense'
-    const isTransfer = parsed.type === 'transfer'
-    const dateLabel = parsed.date ? ` · ${formatDate(parsed.date)}` : ''
-    const locationLine = isTransfer && parsed.fromWalletName && parsed.toWalletName
-      ? ` from **${parsed.fromWalletName.toUpperCase()}** to **${parsed.toWalletName.toUpperCase()}**`
-      : parsed.description ? ` — "${parsed.description}"` : ''
-    const catLine = !isTransfer && parsed.inferredCategoryName ? ` · ${parsed.inferredCategoryName}` : ''
-    const feeLine = parsed.serviceFee ? ` + ${formatAmount(parsed.serviceFee)} service fee` : ''
+    const typeLabel = type === 'income' ? '💰 income' : isTransfer ? '🔄 transfer' : '💸 expense'
+    const fromName = walletNameOf(fromId)
+    const toName = walletNameOf(toId)
+    const detail = [
+      isTransfer && fromName && toName ? `${fromName} → ${toName}` : parsed.description ? `"${parsed.description}"` : '',
+      categoryName ?? '',
+      !isTransfer && fromName ? fromName : '',
+      parsed.serviceFee ? `+ ${formatAmount(parsed.serviceFee)} fee` : '',
+      parsed.date ? formatDate(parsed.date) : '',
+    ].filter(Boolean).join(' · ')
+    const reused = parsed.amountFromHistory ? ' (same amount as last time)' : ''
+    const summary = `${intro} ${formatAmount(parsed.amount ?? 0)} ${typeLabel}${reused}${detail ? ` — ${detail}` : ''}.`
 
-    let walletNote = ''
-    if (isTransfer) {
-      const noFrom = !matchedFromId && parsed.fromWalletName
-      const noTo   = !matchedToId   && parsed.toWalletName
-      if (noFrom || noTo) {
-        const missing = [noFrom && parsed.fromWalletName, noTo && parsed.toWalletName].filter(Boolean).join(' & ')
-        walletNote = `\n\n⚠️ Couldn't find wallet "${missing}" — please select it below.`
-      } else {
-        walletNote = '\n\nWallets matched! Confirm below and I\'ll pre-fill the form.'
-      }
-    } else if (matchedFromId && parsed.fromWalletName) {
-      walletNote = `\n\nWallet matched to **${parsed.fromWalletName.toUpperCase()}**. Confirm below or change it.`
-    } else {
-      walletNote = '\n\nNow pick a wallet and I\'ll pre-fill the form for you.'
+    // Everything needed is known: go straight to the form to review and save.
+    if (fromId && (!isTransfer || toId)) {
+      setShowWalletPicker(false)
+      pushAgent(`${summary}\n\nCheck the details and save.`)
+      setModalOpen(true)
+      return
     }
 
-    pushAgent(`Got it! I detected ${formatAmount(parsed.amount)} ${typeLabel}${locationLine}${catLine}${feeLine}${dateLabel}.${walletNote}`)
+    setShowWalletPicker(true)
+    const unknown = [
+      parsed.fromWalletName && !fromId ? parsed.fromWalletName : '',
+      isTransfer && parsed.toWalletName && !toId ? parsed.toWalletName : '',
+    ].filter(Boolean)
+    const ask = isTransfer
+      ? !fromId && !toId ? 'Pick where the money came from and where it went.' : !fromId ? 'Pick where the money came from.' : 'Pick where the money went.'
+      : type === 'income' ? 'Which wallet did it go to?' : 'Which wallet did you pay from?'
+    const note = unknown.length ? `I don't see a wallet called "${unknown.join('" or "')}". ` : ''
+    pushAgent(`${summary}\n\n${note}${ask}`)
   }
 
   // ---------------------------------------------------------------------------
@@ -398,34 +441,14 @@ export function FloatingAgent() {
         return
       }
 
-      const parsed = parseTransactionText(text)
+      const parsed = parseReceiptText(text, parseContext)
 
       if (!parsed.amount || parsed.confidence.amount < 0.5) {
         pushAgent(`I scanned the image but couldn't find a clear amount. Here's what I read:\n\n"${text.slice(0, 180).trim()}…"\n\nCould you type the amount?`)
         return
       }
 
-      const txData: Partial<CreateTransactionData> = {
-        amount: parsed.amount,
-        description: parsed.description,
-        type: parsed.type ?? 'expense',
-        date: parsed.date,
-        categoryId: matchCategoryId(parsed.inferredCategoryName),
-        ...(parsed.serviceFee && { serviceFee: parsed.serviceFee }),
-      }
-      setPendingTransaction(txData)
-      setSelectedWalletId(matchWalletId(parsed.fromWalletName) ?? '')
-      setSelectedToWalletId(matchWalletId(parsed.toWalletName) ?? '')
-      setShowWalletPicker(true)
-
-      const typeLabel = parsed.type === 'income' ? '💰 income' : '💸 expense'
-      const catLabel = parsed.inferredCategoryName ? ` · ${parsed.inferredCategoryName}` : ''
-      const desc = parsed.description ? ` — "${parsed.description}"` : ''
-      const feeLine = parsed.serviceFee ? ` + ${formatAmount(parsed.serviceFee)} service fee` : ''
-
-      pushAgent(
-        `Receipt scanned! I detected ${formatAmount(parsed.amount)} ${typeLabel}${catLabel}${desc}${feeLine}.\n\nPick a wallet to continue.`
-      )
+      presentParsed({ ...parsed, type: parsed.type ?? 'expense' }, 'Receipt scanned!')
     } catch {
       setIsOcring(false)
       pushAgent("Something went wrong scanning the image. Try again or type the details manually.")
@@ -671,7 +694,7 @@ export function FloatingAgent() {
                   </button>
                   <input
                     type="text"
-                    placeholder="Spent 50 on coffee…"
+                    placeholder="80 lunch cash…"
                     aria-label="Tell Fico about a transaction"
                     value={inputText}
                     onChange={e => setInputText(e.target.value)}

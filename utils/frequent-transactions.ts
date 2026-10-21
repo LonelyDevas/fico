@@ -26,6 +26,9 @@ const positive = (value: number | string | undefined) => {
   return Number.isFinite(n) && n > 0 ? n : 0
 }
 
+/** Names the wallet so tapping the chip fills it in too. */
+const via = (tx: TxLike) => (tx.wallet?.name?.trim() ? ` via ${tx.wallet.name.trim()}` : '')
+
 /** Bank statement descriptions are long and shouty: keep the part before " · " and tidy the case. */
 const tidy = (description: string) => {
   const first = description.split('·')[0].replace(/\s+/g, ' ').trim()
@@ -58,10 +61,10 @@ export function frequentTransactionSuggestions(items: TxLike[] | undefined, limi
       suggestion = { text: `Transfer ${amount} from ${from} to ${to}`, label: `${from} to ${to}`, type: 'transfer', amount }
     } else if (tx.type === 'expense' && description) {
       key = `expense|${description.toLowerCase()}`
-      suggestion = { text: `Spent ${amount} on ${description}`, label: description, type: 'expense', amount }
+      suggestion = { text: `Spent ${amount} on ${description}${via(tx)}`, label: description, type: 'expense', amount }
     } else if (tx.type === 'income' && description) {
       key = `income|${description.toLowerCase()}`
-      suggestion = { text: `Received ${amount} ${description}`, label: description, type: 'income', amount }
+      suggestion = { text: `Received ${amount} ${description}${via(tx)}`, label: description, type: 'income', amount }
     } else {
       return
     }
