@@ -188,6 +188,53 @@ check('duplicate replay ignored', again.data?.duplicate === true, again)
   sync3.stop()
 }
 
+// A table that keeps failing to download (not a lost connection) must not hold the first download
+// back: the app would start it over on every launch and never open from the device.
+{
+  let walletsDown = true
+  const broken = { data: null, error: { code: 'XX000', message: 'wallets: internal error', details: '', hint: '' }, count: null, status: 500, statusText: 'Internal Server Error' }
+  const flaky = {
+    ...remote,
+    from: (t: string) => recordingBuilder([], (c) => (t === 'wallets' && walletsDown ? Promise.resolve(broken) : server.execute('table', t, c))),
+  } as unknown as SupabaseClient
+  const local4 = await LocalDatabase.open({ userId: UID, email: 'a@b.c', username: 'tester', factory: async () => new PGlite() })
+  const sync4 = new SyncEngine(local4, flaky)
+  const done = await sync4.hydrate().then(() => true, (e) => e)
+  check('first download finishes when one table keeps failing', done === true && (await local4.meta('last_pull_at')) !== null, String(done))
+  walletsDown = false
+  await sync4.request()
+  check('the failed table comes down on the next sync', (await snapshot(local4.db)) === (await snapshot(serverDb)))
+  sync4.stop()
+}
+
+// An app update with a new schema: the old copy's data moves into the new one, so the app opens from
+// it without downloading again, and the next sync fetches every row once.
+{
+  const oldPg = new PGlite()
+  const before = await LocalDatabase.open({ userId: UID, email: 'a@b.c', username: 'tester', factory: async () => oldPg })
+  await new SyncEngine(before, remote).hydrate()
+  // A change the update's migration made on the server without touching updated_at.
+  await serverDb.exec(`set session_replication_role = replica; update public.wallets set name = name || ' (renamed)'; set session_replication_role = origin`)
+
+  const newPg = new PGlite()
+  const after = await LocalDatabase.open({
+    userId: UID,
+    email: 'a@b.c',
+    username: 'tester',
+    factory: async (dir) => (dir === 'old-copy' ? oldPg : newPg),
+    legacy: { list: async () => ['old-copy'], remove: async () => {} },
+  })
+  const wallets = (await after.db.query<{ n: number }>(`select count(*)::int as n from public.wallets`)).rows[0].n
+  check('an update carries the device copy across', wallets > 0 && (await after.meta('last_pull_at')) !== null && (await after.meta('refresh_all')) === true, { wallets })
+  const sync5 = new SyncEngine(after, remote)
+  await sync5.request()
+  check('the next sync refreshes every row once', (await snapshot(after.db)) === (await snapshot(serverDb)) && (await after.meta('refresh_all')) === false, {
+    a: await snapshot(after.db),
+    b: await snapshot(serverDb),
+  })
+  sync5.stop()
+}
+
 sync.stop()
 console.log(failures ? `${failures} FAILURES` : 'ALL PASSED')
 process.exit(failures ? 1 : 0)

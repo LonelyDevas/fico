@@ -9,6 +9,7 @@
 // server's migrations) or one that fails to download is skipped, and the rest still sync. Changes to a
 // table the server doesn't have are held on the device and sent once it does.
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { PGlite, Transaction } from '@electric-sql/pglite'
 import type { LocalDatabase } from './database'
 import type { Call } from './engine'
 import { notifyLocalDataChanged, syncStatus, type SyncFailure } from './status'
@@ -16,7 +17,7 @@ import { notifyLocalDataChanged, syncStatus, type SyncFailure } from './status'
 export { syncStatus }
 
 /** Tables copied down from the server, in a stable order. */
-const SYNCED_TABLES = [
+export const SYNCED_TABLES = [
   'profiles',
   'user_details',
   'wallets',
@@ -52,6 +53,32 @@ type Outcome = 'ok' | 'retry' | 'failed' | 'held'
 interface Incoming {
   upserts: Record<string, unknown>[]
   deletes: string[]
+}
+
+/**
+ * Inserts or replaces rows by id. Only the columns the rows carry are written: a column they don't
+ * have (the server or an older copy is behind the schema) keeps its local default instead of
+ * becoming null and failing a not-null constraint. Callers turn off triggers and foreign keys.
+ */
+export async function upsertRows(tx: Transaction | PGlite, table: string, rows: Record<string, unknown>[]): Promise<void> {
+  if (!rows.length) return
+  const cols = (
+    await tx.query<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1 order by ordinal_position`,
+      [table]
+    )
+  ).rows
+    .map((r) => r.column_name)
+    .filter((c) => rows.some((row) => c in row))
+  const list = cols.map((c) => `"${c}"`).join(', ')
+  const setList = cols.filter((c) => c !== 'id').map((c) => `"${c}" = excluded."${c}"`).join(', ')
+  for (let i = 0; i < rows.length; i += 200) {
+    await tx.query(
+      `insert into public."${table}" (${list}) select ${list} from json_populate_recordset(null::public."${table}", $1::json)
+       on conflict (id) do ${setList ? `update set ${setList}` : 'nothing'}`,
+      [JSON.stringify(rows.slice(i, i + 200))]
+    )
+  }
 }
 
 /** A download error, with the code the server gave so callers can tell what kind it was. */
@@ -274,8 +301,10 @@ export class SyncEngine {
    * Replaces local rows with the server's. Returns true when anything changed. Normally every table is
    * applied in one transaction; `eachTable` saves each one as soon as it arrives (first download).
    *
-   * A table that fails to download is skipped and the others still apply. On a first download that
-   * leaves the copy incomplete, so it throws at the end and the next attempt fetches what is missing.
+   * A table that fails to download is skipped and the others still apply; the next sync fetches it.
+   * Only losing the connection stops a pull, so a first download cut short is picked up next time.
+   * A table that keeps failing must not hold the whole device copy back: the app would then start
+   * the first download over on every launch and never work offline.
    */
   async pull(eachTable = false): Promise<boolean> {
     if (this.stopped) return false
@@ -283,6 +312,9 @@ export class SyncEngine {
     const incoming: Record<string, Incoming> = {}
     const failed: string[] = []
     let changedAny = false
+    // Set after an app update moved the device copy to a new schema: its rows came across from the old
+    // copy, which may be missing columns the update added, so every row is fetched again once.
+    const refreshAll = (await this.local.meta('refresh_all')) === true
 
     // A failed table is skipped, unless the device went offline: then nothing else gets through either.
     const settle = (table: string, e: unknown) => {
@@ -300,7 +332,7 @@ export class SyncEngine {
       for (const table of tables) {
         let change: Incoming | null
         try {
-          change = await this.download(table)
+          change = await this.download(table, refreshAll)
         } catch (e) {
           settle(table, e)
           continue
@@ -313,10 +345,9 @@ export class SyncEngine {
         }
         changedAny = true
       }
-      if (failed.length) throw new Error(failed[0])
     } else {
       // Tables download side by side, so a sync takes about as long as its slowest table.
-      const results = await Promise.allSettled(tables.map((t) => this.download(t)))
+      const results = await Promise.allSettled(tables.map((t) => this.download(t, refreshAll)))
       results.forEach((r, i) => {
         const table = tables[i]
         if (r.status === 'rejected') settle(table, r.reason)
@@ -337,19 +368,20 @@ export class SyncEngine {
       }
     }
     await this.local.setMeta('last_pull_at', Date.now())
+    if (refreshAll && failed.length === 0) await this.local.setMeta('refresh_all', false)
     syncStatus.set({ lastSyncedAt: Date.now(), error: failed[0] ?? null })
     if (changed) notifyLocalDataChanged()
     return changed
   }
 
   /** What has to change locally to match the server's copy of `table`, or null when nothing does. */
-  private async download(table: string): Promise<Incoming | null> {
+  private async download(table: string, refreshAll = false): Promise<Incoming | null> {
     const hasUpdatedAt = this.local.engine.catalog.tablesWithUpdatedAt.has(table)
     const remoteIndex = await this.remoteIndex(table, hasUpdatedAt)
     const localIndex = await this.localIndex(table, hasUpdatedAt)
 
     const wanted: string[] = []
-    for (const [id, stamp] of remoteIndex) if (localIndex.get(id) !== stamp) wanted.push(id)
+    for (const [id, stamp] of remoteIndex) if (refreshAll || localIndex.get(id) !== stamp) wanted.push(id)
     const deletes = [...localIndex.keys()].filter((id) => !remoteIndex.has(id))
     if (wanted.length === 0 && deletes.length === 0) return null
 
@@ -403,25 +435,7 @@ export class SyncEngine {
       await tx.query(`set local session_replication_role = replica`)
       for (const [table, { upserts, deletes }] of Object.entries(incoming)) {
         if (deletes.length) await tx.query(`delete from public."${table}" where id = any($1::uuid[])`, [deletes])
-        if (!upserts.length) continue
-        const cols = (
-          await tx.query<{ column_name: string }>(
-            `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1 order by ordinal_position`,
-            [table]
-          )
-        ).rows.map((r) => r.column_name)
-          // Only the columns the server sent: a column the server doesn't have (yet) keeps its local
-          // default instead of becoming null and failing a not-null constraint.
-          .filter((c) => upserts.some((row) => c in row))
-        const list = cols.map((c) => `"${c}"`).join(', ')
-        const setList = cols.filter((c) => c !== 'id').map((c) => `"${c}" = excluded."${c}"`).join(', ')
-        for (let i = 0; i < upserts.length; i += 200) {
-          await tx.query(
-            `insert into public."${table}" (${list}) select ${list} from json_populate_recordset(null::public."${table}", $1::json)
-             on conflict (id) do ${setList ? `update set ${setList}` : 'nothing'}`,
-            [JSON.stringify(upserts.slice(i, i + 200))]
-          )
-        }
+        await upsertRows(tx, table, upserts)
       }
       return true
     })
