@@ -8,7 +8,7 @@
     "predev": "node scripts/copy-ocr-assets.mjs && node scripts/build-local-schema.mjs",
     "dev": "next dev --webpack",
     "lint": "eslint .",
-    "test:offline": "tsx scripts/test-engine.mts && tsx scripts/test-sync.mts && tsx scripts/test-import-csv.mts",
+    "test:offline": "tsx scripts/test-engine.mts && tsx scripts/test-sync.mts && tsx scripts/test-import-csv.mts && tsx scripts/test-transaction-parser.mts",
     "start": "next start",
     "cap:sync": "cap sync",
     "cap:open:android": "cap open android",
