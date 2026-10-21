@@ -45,13 +45,13 @@ declare
 begin
   foreach t in array array[
     'wallets', 'categories', 'transactions', 'bills', 'budgets',
-    'obligations', 'investments', 'investment_value_snapshots'
+    'obligations', 'investments', 'investment_value_snapshots', 'planned_items', 'goals'
   ] loop
     execute format('create trigger zz_sync_log_id before insert on public.%I for each row execute function public._sync_log_id()', t);
   end loop;
   foreach t in array array[
     'wallets', 'categories', 'transactions', 'bills', 'budgets',
-    'obligations', 'investments', 'investment_value_snapshots', 'profiles', 'user_details'
+    'obligations', 'investments', 'investment_value_snapshots', 'planned_items', 'goals', 'profiles', 'user_details'
   ] loop
     execute format('create trigger zz_sync_dirty after insert or update or delete on public.%I for each row execute function public._sync_mark_dirty()', t);
   end loop;

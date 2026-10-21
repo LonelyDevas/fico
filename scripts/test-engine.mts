@@ -70,6 +70,21 @@ const bl = await from('bills')
   .range(0, 19)
 check('bills list', !bl.error && bl.count === 2 && bl.data[0].wallet.name === 'Cash', bl)
 
+// planned items: plain table writes, as queries/user/planned/planned-items.ts makes them
+const qp = queued
+const pi = await from('planned_items').insert({ name: '13th month', type: 'income', amount_low: 20000, amount_high: 22000, date: '2026-12-15', status: 'expected', category_id: null, notes: null })
+check('insert planned item is queued for sync', pi.error === null && queued === qp + 1, { pi, queued, qp })
+const pl = await from('planned_items').select('*, category:categories(name,icon,color)').order('date', { ascending: true })
+check('list planned items', !pl.error && pl.data.length === 1 && pl.data[0].owner_id === UID && pl.data[0].amount_high === 22000 && pl.data[0].category === null, pl)
+await from('planned_items').update({ status: 'confirmed', amount_low: 21000 }).eq('id', pl.data[0].id)
+const pu = await from('planned_items').select('status, amount_low').eq('id', pl.data[0].id).single()
+check('update planned item', pu.data?.status === 'confirmed' && pu.data?.amount_low === 21000, pu)
+const bad = await from('planned_items').insert({ name: 'Backwards', type: 'income', amount_low: 5, amount_high: 1, date: '2026-12-01' })
+check('planned item range checked', !!bad.error, bad)
+await from('planned_items').delete().eq('id', pl.data[0].id)
+const pd = await from('planned_items').select('id')
+check('delete planned item', pd.data?.length === 0, pd)
+
 // update / delete / errors
 const up = await from('categories').update({ status: 'archived' }).eq('id', cat.data.id)
 check('update without select -> data null', up.error === null && up.data === null, up)
