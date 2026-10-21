@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { getInstitution, institutionIconSrc, institutionLogoSrc, type Institution } from '@/lib/ph-institutions'
+import { getInstitution, institutionLogo, type Institution } from '@/lib/ph-institutions'
 import { cn } from '@/lib/utils'
 
 interface InstitutionLogoProps {
@@ -26,24 +26,18 @@ const monogram = (label: string) => {
   return (words[0][0] + words[1][0]).toUpperCase()
 }
 
-// Google answers unknown sites with a 16px globe, and tiny favicons look blurry in the tile.
-const MIN_ICON_PX = 32
-
 /**
- * Institution logo: the given src, then the bundled file in public/banks/, then
- * the site's own icon, falling back to a brand-colored monogram when none load.
+ * Institution logo: the given src, then the institution's bundled file in public/banks/,
+ * falling back to a brand-colored monogram when there is none or it fails to load.
  */
 export function InstitutionLogo({ institution, src, fallbackLabel = '', fallbackColor = '#0066CC', fallback, className, variant = 'solid' }: InstitutionLogoProps) {
   const resolved = typeof institution === 'string' ? getInstitution(institution) : institution ?? undefined
-  const bundled = resolved ? institutionLogoSrc(resolved) : undefined
-  const candidates = [src, bundled, resolved ? institutionIconSrc(resolved) : undefined].filter((c): c is string => !!c)
-  const key = candidates.join('|')
+  const own = resolved ? institutionLogo(resolved) : undefined
+  const candidates = [...(src ? [{ src, fit: 'contain' as const }] : []), ...(own ? [own] : [])]
+  const key = candidates.map((c) => c.src).join('|')
   const [failed, setFailed] = useState<{ key: string; count: number }>({ key, count: 0 })
   const tried = failed.key === key ? failed.count : 0
   const current = candidates[tried]
-  const next = () => setFailed({ key, count: tried + 1 })
-  // Bundled files and coin icons are glyphs on transparency; site icons are full-bleed app icons.
-  const isSiteIcon = !!current && current !== src && current !== bundled
 
   return (
     <span
@@ -53,15 +47,11 @@ export function InstitutionLogo({ institution, src, fallbackLabel = '', fallback
       {current ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          key={current}
-          src={current}
+          key={current.src}
+          src={current.src}
           alt={resolved?.name ?? fallbackLabel}
-          className={cn('size-full', isSiteIcon ? 'object-cover' : 'object-contain p-1.5')}
-          referrerPolicy="no-referrer"
-          onLoad={(e) => {
-            if (isSiteIcon && e.currentTarget.naturalWidth < MIN_ICON_PX) next()
-          }}
-          onError={next}
+          className={cn('size-full', current.fit === 'cover' ? 'object-cover' : 'object-contain p-1.5')}
+          onError={() => setFailed({ key, count: tried + 1 })}
         />
       ) : (
         fallback ?? <span aria-hidden="true">{monogram(resolved?.short ?? fallbackLabel)}</span>
