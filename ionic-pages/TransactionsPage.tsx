@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 
 import { Download, SlidersHorizontal, Upload } from 'lucide-react'
 import { IonContent, IonPage } from '@ionic/react'
 import { TransactionStats } from '@/components/page/transaction/transaction-stats'
 import { DEFAULT_FILTERS, FilterState, TransactionFilters } from '@/components/page/transaction/transaction-filter'
 import { TransactionItem, TransactionList } from '@/components/page/transaction/transaction-list'
-import { useDeleteTransaction, useListTransactions, useQuickStats, useUpdateTransaction } from '@/queries/user/transaction/transaction'
+import { useDeleteTransaction, useInfiniteTransactions, useQuickStats, useUpdateTransaction } from '@/queries/user/transaction/transaction'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { ListTransactionsParams } from '@/types/transaction'
 import { CreateTransactionModal } from '@/components/page/transaction/create-transaction-modal'
@@ -72,11 +72,6 @@ export function TransactionsPage() {
   const [sheetEditingTransaction, setSheetEditingTransaction] = useState<TransactionItem | null>(null)
   const [showImportModal, setShowImportModal] = useState(false)
   const [transactionToDelete, setTransactionToDelete] = useState<TransactionItem | null>(null)
-  const [page, setPage] = useState(0)
-  const [limit, setLimit] = useState(10)
-  const [allTransactions, setAllTransactions] = useState<any[]>([])
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [totalPages, setTotalPages] = useState(1)
 
   const { data: walletsData, isLoading: walletsLoading } = useListWallets();
   const wallets = walletsData?.data
@@ -98,28 +93,28 @@ export function TransactionsPage() {
   }, [wallets])
 
   // Convert filters to API params
-  const apiParams = {
-    ...convertFilterToParams(filters),
-    page: String(page), 
-    limit: String(limit),
-  };
+  const apiParams = { ...convertFilterToParams(filters), limit: '10' }
 
-  // Fetch transactions from API
-  const { data: apiResponse, isLoading, error, refetch } = useListTransactions(apiParams);
+  // Every loaded page is one query, so adding, editing or deleting a transaction refreshes them all.
+  const { data: pagesData, isLoading, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteTransactions(apiParams)
   // Fetch summary stats
   // Totals for the selected period (and wallet), the same range the list above is showing.
   const { data: summaryData, isLoading: summaryLoading } = useQuickStats({ period: filters.dateRange ?? 'month', walletId: filters.walletId || undefined });
   const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction()
   const { mutate: updateTransaction, isPending: isUpdatingTransaction } = useUpdateTransaction()
   
-  // Extract transactions and pagination info from API response
-  const currentPageTransactions = useMemo(() => {
-    if (!apiResponse?.data) return [];
-    // Handle both array and paginated response formats
-    return Array.isArray(apiResponse.data)
-      ? apiResponse.data
-      : apiResponse.data.items || [];
-  }, [apiResponse]);
+  // All loaded pages in order. A row can sit on two pages when a change shifts them, so keep its first copy.
+  const allTransactions = useMemo(() => {
+    const seen = new Set<string>()
+    return (pagesData?.pages ?? [])
+      .flatMap((pageResponse: any) => (Array.isArray(pageResponse?.data) ? pageResponse.data : pageResponse?.data?.items || []))
+      .filter((t: any) => {
+        const id = String(t._id ?? t.id)
+        if (seen.has(id)) return false
+        seen.add(id)
+        return true
+      })
+  }, [pagesData])
 
   // Rows from Supabase have no `title`: use the category as the headline and the note as the detail.
   const items: TransactionItem[] = useMemo(
@@ -135,34 +130,9 @@ export function TransactionsPage() {
     [allTransactions]
   )
 
-  const totalItems = apiResponse?.data?.totalItems || currentPageTransactions.length;
-  const totalPagesCount = apiResponse?.data?.totalPages || 1;
-
-  // Handle accumulating transactions for infinite scroll
-  useEffect(() => {
-    if (page === 0) {
-      // Reset when filters change
-      setAllTransactions(currentPageTransactions);
-    } else {
-      // Append new transactions
-      setAllTransactions(prev => [...prev, ...currentPageTransactions]);
-      setIsLoadingMore(false);
-    }
-  }, [currentPageTransactions, page]);
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    setPage(0);
-    setAllTransactions([]);
-    setIsLoadingMore(false);
-  }, [filters]);
-
   const handleLoadMore = () => {
-    if (!isLoadingMore && page + 1 < totalPagesCount) {
-      setIsLoadingMore(true);
-      setPage(prev => prev + 1);
-    }
-  };
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
+  }
 
   const handleStartInlineEdit = (transaction: TransactionItem) => {
     setEditingTransaction(transaction)
@@ -285,9 +255,9 @@ export function TransactionsPage() {
             <div className="min-w-0 lg:order-1">
               <TransactionList
                 transactions={items}
-                isLoading={isLoading && page === 0}
-                hasMore={page + 1 < totalPagesCount}
-                isLoadingMore={isLoadingMore}
+                isLoading={isLoading}
+                hasMore={!!hasNextPage}
+                isLoadingMore={isFetchingNextPage}
                 walletNames={walletNames}
                 walletTypes={walletTypes}
                 onTransactionClick={handleStartInlineEdit}
