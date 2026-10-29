@@ -5,7 +5,7 @@ import { supabase } from "@/utils/supabase-client";
 import { toCamelCase } from "@/utils/case-transform";
 import { parseImportCsv } from "@/utils/import-csv";
 import { handleApiError } from "@/utils/error-handler";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CreateTransactionData,
   ListTransactionsParams,
@@ -128,6 +128,19 @@ export const useListTransactions = (params?: ListTransactionsParams) => {
     queryKey: ["transactions", params],
     queryFn: () => listTransactions(params || {}),
     enabled: true,
+  });
+};
+
+// The Activity list, one page at a time. Kept as one infinite query so a new, edited or deleted
+// transaction refetches every loaded page together: with each page as its own query, scrolling
+// past the first page left it inactive, so a new transaction never showed until a reload.
+export const useInfiniteTransactions = (params: Omit<ListTransactionsParams, 'page'>) => {
+  return useInfiniteQuery({
+    queryKey: ["transactions", "infinite", params],
+    queryFn: ({ pageParam }) => listTransactions({ ...params, page: String(pageParam) }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      allPages.length < (lastPage?.data?.totalPages ?? 0) ? allPages.length : undefined,
   });
 };
 
