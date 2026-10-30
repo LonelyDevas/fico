@@ -9,6 +9,7 @@ import { BudgetCard } from '@/components/page/budget/budget-card'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
 import { BudgetPeriod } from '@/types/budget'
+import { budgetOverlapsMonth } from '@/utils/budget-month'
 
 interface BudgetCategory {
   id: string
@@ -42,6 +43,8 @@ interface BudgetApiItem {
   alertThreshold?: number
   categoryIds?: string[]
   categories?: BudgetCategory[]
+  startDate?: string
+  endDate?: string
 }
 
 const normalizeBudget = (budget: BudgetApiItem, index: number): BudgetViewModel => {
@@ -68,7 +71,7 @@ const normalizeBudget = (budget: BudgetApiItem, index: number): BudgetViewModel 
   }
 }
 
-export default function BudgetList() {
+export default function BudgetList({ month }: { month: Date }) {
   const [open, setOpen] = useState(false)
   const [selectedBudget, setSelectedBudget] = useState<BudgetViewModel | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -92,8 +95,10 @@ export default function BudgetList() {
       items = responseData.budgets
     }
 
-    return items.map((budget, budgetIndex) => normalizeBudget(budget, budgetIndex))
-  }, [budgetResponse])
+    return items
+      .filter((budget) => budgetOverlapsMonth(budget, month))
+      .map((budget, budgetIndex) => normalizeBudget(budget, budgetIndex))
+  }, [budgetResponse, month])
 
   const handleRollover = (id: string) => {
     rolloverBudget(id, {

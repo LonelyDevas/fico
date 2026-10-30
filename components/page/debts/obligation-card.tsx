@@ -44,7 +44,7 @@ export function ObligationCard({ obligation, hideAmounts, onPay, onEdit, onArchi
   const accent = isDebt ? 'bg-warning/15 text-warning' : 'bg-success/15 text-success'
 
   return (
-    <article className={`rounded-3xl border border-border bg-card p-4 shadow-ios ${settled ? 'opacity-70' : ''}`}>
+    <article className={`min-w-0 rounded-3xl border border-border bg-card p-4 shadow-ios ${settled ? 'opacity-70' : ''}`}>
       <div className="flex items-start gap-3">
         <span className={`flex size-11 shrink-0 items-center justify-center rounded-2xl ${accent}`}>
           {isDebt ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownLeft className="h-5 w-5" />}
@@ -56,8 +56,8 @@ export function ObligationCard({ obligation, hideAmounts, onPay, onEdit, onArchi
             {obligation.interestRate ? ` · ${obligation.interestRate}% ${obligation.interestType ?? ''}`.trimEnd() : ''}
           </p>
         </div>
-        {settled && <span className="rounded-full bg-success/15 px-2.5 py-1 text-xs font-semibold text-success">Settled</span>}
-        <div className="relative -mr-1">
+        {settled && <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-1 text-xs font-semibold text-success">Settled</span>}
+        <div className="relative -mr-1 shrink-0">
           <button type="button" onClick={() => setMenu((v) => !v)} aria-label={`${obligation.name} actions`} className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary">
             <MoreHorizontal className="h-5 w-5" />
           </button>
@@ -80,11 +80,11 @@ export function ObligationCard({ obligation, hideAmounts, onPay, onEdit, onArchi
       </div>
 
       <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{isDebt ? 'Left to pay' : 'Left to collect'}</p>
           <p className="font-heading text-2xl font-bold tabular-nums text-foreground">{money(remaining)}</p>
         </div>
-        <p className="pb-1 text-xs tabular-nums text-muted-foreground">of {money(total)}</p>
+        <p className="shrink-0 pb-1 text-xs tabular-nums text-muted-foreground">of {money(total)}</p>
       </div>
 
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label="Paid so far">
