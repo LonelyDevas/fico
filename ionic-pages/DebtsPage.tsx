@@ -196,7 +196,7 @@ export default function DebtsPage() {
 
           <div className="mt-4">
             {isLoading ? (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {[0, 1].map((i) => (
                   <div key={i} className="h-44 animate-pulse rounded-3xl bg-secondary" />
                 ))}
@@ -217,7 +217,7 @@ export default function DebtsPage() {
             ) : (
               <div className="space-y-6">
                 {open.length > 0 && (
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {open.map((o) => (
                       <ObligationCard key={o.id} obligation={o} hideAmounts={!showAmounts} onPay={setPaying} onEdit={(x) => setSheet({ open: true, obligation: x, direction: x.direction })} onArchive={handleArchive} />
                     ))}
@@ -226,7 +226,7 @@ export default function DebtsPage() {
                 {settled.length > 0 && (
                   <section aria-label="Settled">
                     <h2 className="mb-2.5 px-1 font-heading text-sm font-semibold text-muted-foreground">Settled</h2>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       {settled.map((o) => (
                         <ObligationCard key={o.id} obligation={o} hideAmounts={!showAmounts} onPay={setPaying} onEdit={(x) => setSheet({ open: true, obligation: x, direction: x.direction })} onArchive={handleArchive} />
                       ))}
