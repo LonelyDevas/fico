@@ -64,7 +64,9 @@ export async function upsertRows(tx: Transaction | PGlite, table: string, rows: 
   if (!rows.length) return
   const cols = (
     await tx.query<{ column_name: string }>(
-      `select column_name from information_schema.columns where table_schema = 'public' and table_name = $1 order by ordinal_position`,
+      // Generated columns (budgets.remaining, budgets.percentage_spent) can't be written; they recompute.
+      `select column_name from information_schema.columns
+        where table_schema = 'public' and table_name = $1 and is_generated = 'NEVER' order by ordinal_position`,
       [table]
     )
   ).rows

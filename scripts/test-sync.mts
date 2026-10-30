@@ -92,6 +92,12 @@ await SR('transactions_delete', { p_id: victim })
 await sync.request()
 check('pull removes rows deleted elsewhere', (await snapshot(local.db)) === (await snapshot(serverDb)))
 
+// Budgets carry generated columns (remaining, percentage_spent) that the download must not write.
+await SR('budgets_create', { p_name: 'Needs', p_amount: 1000, p_period: 'monthly', p_start_date: new Date().toISOString(), p_category_ids: [] })
+await sync.request()
+const budgetsHere = (await local.db.query<{ n: number }>(`select count(*)::int as n from public.budgets`)).rows[0].n
+check('pull brings budgets', budgetsHere === 1 && (await snapshot(local.db)) === (await snapshot(serverDb)), { budgetsHere, failures: syncStatus.get().failures })
+
 // A change the server rejects: the wallet was archived on another device while this one was offline.
 offline = true
 setOnline(false)
