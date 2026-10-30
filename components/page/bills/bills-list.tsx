@@ -55,8 +55,14 @@ const paymentIcons: Record<PaymentStatus, React.ReactNode> = {
   received: <CircleCheck className="w-3.5 h-3.5" />,
 }
 
+const isSettledStatus = (status: Bill['paymentStatus']) => status === 'paid' || status === 'received'
+
+// Unpaid bills and not-yet-received income come first, then settled ones; each group by due date.
 const sortByDueDate = (items: Bill[]): Bill[] => {
   return [...items].sort((left, right) => {
+    const settledDiff = Number(isSettledStatus(left.paymentStatus)) - Number(isSettledStatus(right.paymentStatus))
+    if (settledDiff !== 0) return settledDiff
+
     const leftTime = new Date(left.dueDate).getTime()
     const rightTime = new Date(right.dueDate).getTime()
 
@@ -108,7 +114,7 @@ export function BillsList({
       {sortByDueDate(bills).map((bill) => {
         const dueDays = getDaysFromToday(bill.dueDate)
         const isIncome = bill.type === 'income'
-        const isSettled = bill.paymentStatus === 'paid' || bill.paymentStatus === 'received'
+        const isSettled = isSettledStatus(bill.paymentStatus)
         const isOverdue = !isSettled && typeof dueDays === 'number' && dueDays < 0
         const showMarkPaid = !isSettled
         const markActionLabel = isIncome ? (showMarkPaid ? 'Mark Received' : 'Mark Unreceived') : (showMarkPaid ? 'Mark Paid' : 'Mark Unpaid')
