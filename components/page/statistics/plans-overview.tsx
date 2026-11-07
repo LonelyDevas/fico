@@ -28,6 +28,10 @@ const DAYS_PER_MONTH = 365.25 / 12
 const asList = (data: any): any[] => (Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : Array.isArray(data?.wallets) ? data.wallets : [])
 
 interface SummaryCardProps {
+  /** Anchor so other pages can link straight to this card, e.g. /statistics#wishlist. */
+  id: string
+  /** Which Insights section the card sits in. */
+  section: InsightSection
   title: string
   href: string
   icon: LucideIcon
@@ -40,11 +44,12 @@ interface SummaryCardProps {
 }
 
 /** One area of the app (bills, goals, ...) in a small card that opens its page. */
-function SummaryCard({ title, href, icon: Icon, tone, loading, value, details, hint }: SummaryCardProps) {
+function SummaryCard({ id, title, href, icon: Icon, tone, loading, value, details, hint }: Omit<SummaryCardProps, 'section'>) {
   return (
     <Link
+      id={id}
       to={href}
-      className="group flex min-w-0 flex-col rounded-2xl border border-border bg-card p-4 shadow-ios transition-colors hover:border-primary/40"
+      className="group flex min-w-0 scroll-mt-28 flex-col rounded-2xl border border-border bg-card p-4 shadow-ios transition-colors hover:border-primary/40"
     >
       <div className="flex items-center gap-2.5">
         <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${tone}`}>
@@ -73,8 +78,47 @@ function SummaryCard({ title, href, icon: Icon, tone, loading, value, details, h
   )
 }
 
-function Heading({ children }: { children: ReactNode }) {
-  return <h2 className="mb-3 px-1 font-heading text-lg font-semibold text-foreground">{children}</h2>
+function Empty({ to, text, action }: { to: string; text: string; action: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-border bg-card/60 px-4 py-3 text-sm text-muted-foreground">
+      <span>{text}</span>
+      <Link to={to} className="shrink-0 font-semibold text-primary">
+        {action}
+      </Link>
+    </div>
+  )
+}
+
+export type InsightSection = 'budgets' | 'money' | 'bills' | 'goals' | 'debts'
+
+/** Section ids on the Insights page, in order, with the chip label for each. */
+export const INSIGHT_SECTIONS: { id: string; label: string }[] = [
+  { id: 'spending', label: 'Spending' },
+  { id: 'budgets', label: 'Budgets' },
+  { id: 'money', label: 'Money' },
+  { id: 'bills', label: 'Bills' },
+  { id: 'goals', label: 'Goals' },
+  { id: 'debts', label: 'Debts & investing' },
+  { id: 'forecast', label: 'Forecast' },
+]
+
+export function InsightHeading({ children, hint }: { children: ReactNode; hint?: ReactNode }) {
+  return (
+    <div className="mb-3 px-1">
+      <h2 className="font-heading text-lg font-semibold text-foreground">{children}</h2>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+/** One Insights section: an anchor other pages link to (/statistics#bills). */
+export function InsightSectionBlock({ id, title, hint, children }: { id: string; title: ReactNode; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <section id={id} aria-label={typeof title === 'string' ? title : id} className="scroll-mt-28">
+      <InsightHeading hint={hint}>{title}</InsightHeading>
+      {children}
+    </section>
+  )
 }
 
 /**
@@ -192,6 +236,8 @@ export function PlansOverview() {
   const cards: (SummaryCardProps & { show: boolean })[] = [
     {
       show: true,
+      id: 'money-total',
+      section: 'money',
       title: 'Money',
       href: '/wallets',
       icon: Wallet,
@@ -206,6 +252,8 @@ export function PlansOverview() {
     },
     {
       show: true,
+      id: 'bills-total',
+      section: 'bills',
       title: 'Bills & income',
       href: '/bills',
       icon: CreditCard,
@@ -220,6 +268,8 @@ export function PlansOverview() {
     },
     {
       show: goals.count > 0,
+      id: 'goals-total',
+      section: 'goals',
       title: 'Goals',
       href: '/goals',
       icon: PiggyBank,
@@ -236,6 +286,8 @@ export function PlansOverview() {
     },
     {
       show: debts.count > 0,
+      id: 'debts-total',
+      section: 'debts',
       title: 'Debts & loans',
       href: '/debts',
       icon: HandCoins,
@@ -250,6 +302,8 @@ export function PlansOverview() {
     },
     {
       show: wishlist.count > 0,
+      id: 'wishlist',
+      section: 'money',
       title: 'Wishlist',
       href: '/wishlist',
       icon: Gift,
@@ -264,6 +318,8 @@ export function PlansOverview() {
     },
     {
       show: invest.count > 0,
+      id: 'investments',
+      section: 'debts',
       title: 'Investments',
       href: '/investments',
       icon: TrendingUp,
@@ -278,6 +334,8 @@ export function PlansOverview() {
     },
     {
       show: planned.count > 0,
+      id: 'planned',
+      section: 'bills',
       title: 'Planned',
       href: '/planned',
       icon: CalendarClock,
@@ -292,10 +350,22 @@ export function PlansOverview() {
     },
   ]
 
+  const shown = cards.filter((c) => c.show)
+  const grid = (section: InsightSection) => {
+    const list = shown.filter((c) => c.section === section)
+    if (list.length === 0) return null
+    return (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {list.map((card) => (
+          <SummaryCard key={card.id} id={card.id} title={card.title} href={card.href} icon={card.icon} tone={card.tone} loading={card.loading} value={card.value} details={card.details} hint={card.hint} />
+        ))}
+      </div>
+    )
+  }
+
   return (
-    <div className="mt-8 space-y-8">
-      <section aria-label={`Budgets in ${monthLabel}`}>
-        <Heading>Budgets in {monthLabel}</Heading>
+    <>
+      <InsightSectionBlock id="budgets" title={`Budgets in ${monthLabel}`} hint="How this month's plans are going, and what you can still save.">
         <SavingsCard
           summary={budgetMonth.summary}
           monthLabel={monthLabel}
@@ -314,18 +384,23 @@ export function PlansOverview() {
           message={budgetPerformance?.data?.message || ''}
           loading={budgetSummaryLoading || budgetPerformanceLoading}
         />
-      </section>
+      </InsightSectionBlock>
 
-      <section aria-label="Your money at a glance">
-        <Heading>At a glance</Heading>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {cards
-            .filter((c) => c.show)
-            .map((card) => (
-              <SummaryCard key={card.title} {...card} />
-            ))}
-        </div>
-      </section>
-    </div>
+      <InsightSectionBlock id="money" title="Money" hint="Net worth across your wallets, and what's on your wishlist.">
+        {grid('money')}
+      </InsightSectionBlock>
+
+      <InsightSectionBlock id="bills" title="Bills and plans" hint="What's still to pay, and one-offs you expect.">
+        {grid('bills')}
+      </InsightSectionBlock>
+
+      <InsightSectionBlock id="goals" title="Goals">
+        {grid('goals') ?? <Empty to="/goals" text="No goals yet." action="Add a goal" />}
+      </InsightSectionBlock>
+
+      <InsightSectionBlock id="debts" title="Debts and investing" hint="Your net position and how your investments are doing.">
+        {grid('debts') ?? <Empty to="/debts" text="No debts, loans or investments yet." action="Open Debts" />}
+      </InsightSectionBlock>
+    </>
   )
 }

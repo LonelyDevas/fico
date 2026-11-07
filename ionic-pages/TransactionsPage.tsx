@@ -7,7 +7,7 @@ import { IonContent, IonPage } from '@ionic/react'
 import { TransactionStats } from '@/components/page/transaction/transaction-stats'
 import { DEFAULT_FILTERS, FilterState, TransactionFilters } from '@/components/page/transaction/transaction-filter'
 import { TransactionItem, TransactionList } from '@/components/page/transaction/transaction-list'
-import { useDeleteTransaction, useInfiniteTransactions, useQuickStats, useUpdateTransaction } from '@/queries/user/transaction/transaction'
+import { useInfiniteTransactions, useQuickStats, useUpdateTransaction } from '@/queries/user/transaction/transaction'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { ListTransactionsParams } from '@/types/transaction'
 import { CreateTransactionModal } from '@/components/page/transaction/create-transaction-modal'
@@ -16,6 +16,8 @@ import { DeleteTransactionDialog } from '@/components/page/transaction/delete-tr
 import { BulkBalanceSheet } from '@/components/page/transaction/bulk-balance-sheet'
 import toast from 'react-hot-toast'
 import { exportTransactionsCsv } from '@/utils/export-data'
+import { usePendingDeletes, useTransactionUndo } from '@/queries/user/transaction/undo'
+import { UndoHistoryButton } from '@/components/page/transaction/undo-history-button'
 
 // Helper function to convert filter state to API params
 /** Where the selected calendar period begins, or null for "all". */
@@ -138,10 +140,11 @@ export function TransactionsPage() {
   // Fetch summary stats
   // Totals for the selected period (and wallet), the same range the list above is showing.
   const { data: summaryData, isLoading: summaryLoading } = useQuickStats({ period: filters.dateRange ?? 'month', walletId: filters.walletId || undefined });
-  const { mutate: deleteTransaction, isPending: isDeleting } = useDeleteTransaction()
+  const { deleteWithUndo, updateWithUndo } = useTransactionUndo()
+  const pendingDeletes = usePendingDeletes()
   const { mutate: updateTransaction, isPending: isUpdatingTransaction } = useUpdateTransaction()
   
-  const items = useMemo(() => toTransactionItems(pagesData?.pages), [pagesData])
+  const items = useMemo(() => toTransactionItems(pagesData?.pages).filter((t) => !pendingDeletes.includes(t.id)), [pagesData, pendingDeletes])
 
   // An empty period (say, the 1st of the month) shows what came before it instead of a blank page.
   // The totals above stay on the selected period.
@@ -149,7 +152,7 @@ export function TransactionsPage() {
   const showEarlier = !!start && !isLoading && items.length === 0
   const earlierParams = { ...apiParams, startDate: undefined, endDate: start ? new Date(start.getTime() - 1).toISOString() : undefined }
   const earlier = useInfiniteTransactions(earlierParams, showEarlier)
-  const earlierItems = useMemo(() => toTransactionItems(earlier.data?.pages), [earlier.data])
+  const earlierItems = useMemo(() => toTransactionItems(earlier.data?.pages).filter((t) => !pendingDeletes.includes(t.id)), [earlier.data, pendingDeletes])
   const listingEarlier = showEarlier && earlierItems.length > 0
 
   const handleLoadMore = () => {
@@ -170,16 +173,17 @@ export function TransactionsPage() {
   }
 
   const handleSaveInlineEdit = (data: { id: string; walletId?: string; categoryId?: string; amount?: number; type?: 'income' | 'expense' | 'transfer'; description?: string; date?: string; status?: 'completed' | 'pending' | 'cancelled' }) => {
-    updateTransaction(data, {
-      onSuccess: () => {
-        toast.success('Transaction updated successfully')
+    const before = [...items, ...earlierItems].find((t) => t.id === data.id)
+    const save = before ? updateWithUndo(before, data, 'Transaction updated') : new Promise<void>((resolve, reject) => updateTransaction(data, { onSuccess: () => resolve(), onError: reject }))
+    Promise.resolve(save)
+      .then(() => {
+        if (!before) toast.success('Transaction updated')
         setEditingTransaction(null)
         refetch()
-      },
-      onError: () => {
+      })
+      .catch(() => {
         // keep editor open so the user can correct and retry
-      },
-    })
+      })
   }
 
   const handleDeleteTransaction = (transaction: TransactionItem) => {
@@ -188,22 +192,10 @@ export function TransactionsPage() {
 
   const handleConfirmDeleteTransaction = () => {
     if (!transactionToDelete) return
-
-    deleteTransaction(
-      { id: transactionToDelete.id },
-      {
-        onSuccess: () => {
-          toast.success('Transaction deleted successfully')
-          setTransactionToDelete(null)
-          if (editingTransaction?.id === transactionToDelete.id) {
-            setEditingTransaction(null)
-          }
-        },
-        onError: () => {
-          setTransactionToDelete(null)
-        },
-      }
-    )
+    // Runs after a few seconds unless undone; the row is hidden meanwhile.
+    deleteWithUndo(transactionToDelete)
+    if (editingTransaction?.id === transactionToDelete.id) setEditingTransaction(null)
+    setTransactionToDelete(null)
   }
 
   // Use summary stats from API
@@ -225,6 +217,7 @@ export function TransactionsPage() {
               <h1 className="mt-1 font-heading text-2xl font-semibold leading-tight text-foreground sm:text-3xl">Activity</h1>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <UndoHistoryButton />
               <button
                 type="button"
                 disabled={exporting}
@@ -264,7 +257,7 @@ export function TransactionsPage() {
             </div>
           </div>
 
-          <div className="mt-5">
+          <div className="mt-2">
             <TransactionStats stats={stats} isLoading={summaryLoading} periodPhrase={PERIOD_PHRASE[filters.dateRange ?? 'month']} />
           </div>
 
@@ -335,7 +328,7 @@ export function TransactionsPage() {
         }}
         onConfirm={handleConfirmDeleteTransaction}
         transaction={transactionToDelete}
-        isDeleting={isDeleting}
+        isDeleting={false}
       />
     </IonPage>
   )

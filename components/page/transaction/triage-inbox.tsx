@@ -12,6 +12,8 @@ import { useListTransactions, useTriageTransaction } from '@/queries/user/transa
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
 import { suggestCategory, type TriageCategory } from '@/utils/triage'
+import { useActiveRules } from '@/queries/user/rule/rules'
+import { offerRule } from '@/components/page/rules/offer-rule'
 
 const asList = (data: any): any[] => (Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [])
 const idOf = (x: any) => String(x._id ?? x.id)
@@ -62,7 +64,8 @@ export function TriageInbox({ open, onClose }: { open: boolean; onClose: () => v
   }, [open, items, itemsLoading, categoriesResponse, queue])
 
   const current = queue?.[index]
-  const suggestion = useMemo(() => (current ? suggestCategory(current, history, categories) : null), [current, history, categories])
+  const rules = useActiveRules()
+  const suggestion = useMemo(() => (current ? suggestCategory(current, history, categories, rules) : null), [current, history, categories, rules])
   const choices = useMemo(
     // Every category of the matching type: a cap here hid the last ones alphabetically (e.g. "Repaid").
     () => categories.filter((c) => !c.type || !current || c.type === current.type),
@@ -77,6 +80,8 @@ export function TriageInbox({ open, onClose }: { open: boolean; onClose: () => v
   const accept = (category?: TriageCategory) => {
     if (!current || !category) return
     triage({ id: idOf(current), patch: { category_id: category.id } })
+    // Picked something other than the suggestion (or there was none): offer to make it a rule.
+    if (category.id !== suggestion?.category.id) offerRule({ description: current.description, type: current.type, categoryId: category.id, categoryName: category.name, rules })
     next(true)
   }
   const keepBalance = () => {
@@ -174,7 +179,7 @@ export function TriageInbox({ open, onClose }: { open: boolean; onClose: () => v
                         <>
                           Suggested: <span className="font-semibold text-foreground">{suggestion.category.name}</span>
                           <span className="block text-xs text-muted-foreground">
-                            {suggestion.reason === 'history' ? 'You used it for this before' : 'From the note'} · swipe right to use it
+                            {suggestion.reason === 'rule' ? 'From your rule' : suggestion.reason === 'history' ? 'You used it for this before' : 'From the note'} · swipe right to use it
                           </span>
                         </>
                       ) : (

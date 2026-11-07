@@ -70,6 +70,7 @@ export default function DebtsPage() {
       <IonContent className="bg-background text-foreground">
         <main className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
           <ManageHeader
+            statsHref="/statistics#debts-total"
             eyebrow="Borrowed and lent"
             title="Debts & loans"
             loading={summaryLoading}

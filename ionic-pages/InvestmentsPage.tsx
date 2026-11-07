@@ -68,6 +68,7 @@ export default function InvestmentsPage() {
       <IonContent className="bg-background text-foreground">
         <main className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
           <ManageHeader
+            statsHref="/statistics#investments"
             eyebrow="Growing your money"
             title="Investments"
             loading={summaryLoading}

@@ -10,6 +10,8 @@ import { useListCategories } from '@/queries/user/category/categories'
 import { X, Send, Camera, CheckCircle2, ChevronDown, ArrowDownLeft, ArrowUpRight, Shuffle } from 'lucide-react'
 import { CreateTransactionModal } from '@/components/page/transaction/create-transaction-modal'
 import { matchCategory, matchWallet, parseReceiptText, parseTransactionText, type ParseContext, type ParsedTransaction } from '@/utils/transaction-parser'
+import { useActiveRules } from '@/queries/user/rule/rules'
+import { applyRules } from '@/utils/rules'
 import { looksLikeMoneyMessage, parseNotification, rememberLoggedReference, wasReferenceLogged } from '@/utils/notification-parser'
 import { detectIntent } from '@/utils/agent-intent'
 import { answerQuestion, HELP_TEXT } from '@/utils/agent-answers'
@@ -290,6 +292,8 @@ export function FloatingAgent() {
     })),
   }), [wallets, categories, recentTransactions])
 
+  const rules = useActiveRules()
+
   const matchCategoryId = useCallback((inferredName: string | undefined, type: ParsedTransaction['type']): string | undefined => {
     const match = matchCategory(inferredName, type, categories)
     return match?._id ?? match?.id
@@ -391,9 +395,11 @@ export function FloatingAgent() {
   const presentParsed = (parsed: ParsedTransaction, intro = 'Got it!') => {
     const type = parsed.type ?? 'expense'
     const isTransfer = type === 'transfer'
-    const fromId = matchWalletId(parsed.fromWalletName) ?? ''
+    // The user's own rules come first; the parser's guess fills what they leave empty.
+    const ruled = isTransfer ? null : applyRules(rules, { description: parsed.description, type })
+    const fromId = matchWalletId(parsed.fromWalletName) ?? ruled?.walletId ?? ''
     const toId = isTransfer ? matchWalletId(parsed.toWalletName) ?? '' : ''
-    const categoryId = isTransfer ? undefined : matchCategoryId(parsed.inferredCategoryName, type)
+    const categoryId = isTransfer ? undefined : ruled?.categoryId ?? matchCategoryId(parsed.inferredCategoryName, type)
     const categoryName = categoryId ? categories.find((c: any) => (c._id ?? c.id) === categoryId)?.name : undefined
 
     const txData: Partial<CreateTransactionData> = {
@@ -402,6 +408,7 @@ export function FloatingAgent() {
       type,
       date: parsed.date,
       categoryId,
+      ...(ruled?.tags.length ? { tags: ruled.tags } : {}),
       ...(parsed.serviceFee && { serviceFee: parsed.serviceFee }),
     }
     setPendingTransaction(txData)

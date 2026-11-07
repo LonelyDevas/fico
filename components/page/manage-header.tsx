@@ -9,7 +9,7 @@ interface ManageHeaderProps {
   /** Small line above the title. */
   eyebrow: string
   title: string
-  /** One short line under the title, like a total. Charts and breakdowns live on Statistics. */
+  /** One short line under the title, like a total. Charts and breakdowns live on Insights. */
   summary?: ReactNode
   loading?: boolean
   showAmounts?: boolean
@@ -19,13 +19,13 @@ interface ManageHeaderProps {
   addLabel?: string
   /** Extra buttons placed before the add button. */
   actions?: ReactNode
-  /** Link to where the full numbers for this page are shown. */
+  /** Link to this page's section on Insights, e.g. /statistics#bills. */
   statsHref?: string
 }
 
 /**
  * Top of a page where you add, edit or remove things. It keeps to the title, one line of numbers
- * and the add button, so the list itself comes first. The full breakdown is on Statistics.
+ * and the add button, so the list itself comes first. The full breakdown is on Insights.
  */
 export function ManageHeader({
   eyebrow,
@@ -84,7 +84,7 @@ export function ManageHeader({
               className="ml-auto flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10"
             >
               <BarChart3 className="h-3.5 w-3.5" />
-              Stats
+              See insights
             </Link>
           )}
         </div>

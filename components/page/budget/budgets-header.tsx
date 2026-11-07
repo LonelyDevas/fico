@@ -27,7 +27,7 @@ export function BudgetsHeader({ onAddBudget, addLabel = 'New budget', summary, l
 
   return (
     <div className="mb-6 space-y-4">
-      <ManageHeader eyebrow="Spending limits" title="Budgets" summary={summary} loading={loading} onAdd={onAddBudget} addLabel={addLabel} />
+      <ManageHeader statsHref="/statistics#budgets" eyebrow="Spending limits" title="Budgets" summary={summary} loading={loading} onAdd={onAddBudget} addLabel={addLabel} />
 
       <div className="flex items-center justify-between gap-2 rounded-2xl border border-border bg-card px-2 py-1.5">
         <button type="button" onClick={() => step(-1)} aria-label="Previous month" className="rounded-full p-2 text-foreground transition-colors hover:bg-secondary">

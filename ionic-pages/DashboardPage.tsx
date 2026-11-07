@@ -31,7 +31,7 @@ import { TriageInbox, useUncategorized } from '@/components/page/transaction/tri
 const SHORTCUTS: { label: string; hint: string; href: string; icon: LucideIcon }[] = [
   { label: 'Budgets', hint: 'Set spending limits', href: '/budgets', icon: PieChart },
   { label: 'Bills', hint: 'See what is due', href: '/bills', icon: CreditCard },
-  { label: 'Statistics', hint: 'Charts and trends', href: '/statistics', icon: BarChart3 },
+  { label: 'Insights', hint: 'Charts and trends', href: '/statistics', icon: BarChart3 },
   { label: 'Categories', hint: 'Organize spending', href: '/categories', icon: Tag },
 ]
 
@@ -253,7 +253,7 @@ export default function DashboardPage() {
     ),
     whereItWent: (
                     <Card className="order-4 lg:order-none">
-                <CardHeader title={`Where it went ${periodPhrase}`} to="/statistics" linkLabel="Details" />
+                <CardHeader title={`Where it went ${periodPhrase}`} to="/statistics#spending" linkLabel="Details" />
                 {categoriesLoading ? (
                   <Skeleton className="h-24 rounded-2xl" />
                 ) : categories.length > 0 ? (

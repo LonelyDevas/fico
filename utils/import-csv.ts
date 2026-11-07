@@ -3,6 +3,7 @@
 // This is the parsing half of the import-transactions Edge Function
 // (fico-api/supabase/functions/import-transactions), run on the device so an import works offline.
 // Keep the two in step.
+import { applyRules, type Rule } from './rules'
 
 export interface ImportRow {
   date: string
@@ -128,7 +129,13 @@ function mapIndicator(s: string): 'income' | 'expense' | null {
   return null
 }
 
-export function parseImportCsv(content: string, categories: { id: string; name: string }[], defaultCategoryId?: string | null): ParsedImport {
+export function parseImportCsv(
+  content: string,
+  categories: { id: string; name: string }[],
+  defaultCategoryId?: string | null,
+  /** Categorization rules: used when the file's own Category column doesn't name one. */
+  rules: Rule[] = []
+): ParsedImport {
   const rows = parseCSV(content)
   const valid: ImportRow[] = []
   const skipped: SkippedRow[] = []
@@ -213,7 +220,10 @@ export function parseImportCsv(content: string, categories: { id: string; name: 
       const cat = categories.find((c) => c.name?.toLowerCase() === csvCategory.trim().toLowerCase())
       if (cat) matchedCategoryId = cat.id
     }
+    const ruled = applyRules(rules, { description: finalDesc, type })
+    if (!matchedCategoryId && ruled.categoryId) matchedCategoryId = ruled.categoryId
     if (!matchedCategoryId && defaultCategoryId) matchedCategoryId = defaultCategoryId
+    for (const tag of ruled.tags) if (!tags.includes(tag)) tags.push(tag)
 
     valid.push({
       date: parsedDate.toISOString(),

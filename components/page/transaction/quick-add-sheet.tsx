@@ -4,11 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, Delete, Plus, TriangleAlert, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet'
-import { useCreateTransaction, useUpdateTransaction } from '@/queries/user/transaction/transaction'
+import { useCreateTransaction } from '@/queries/user/transaction/transaction'
+import { useTransactionUndo } from '@/queries/user/transaction/undo'
 import { useSafeToSpendInputs } from '@/hooks/use-safe-to-spend'
 import { applyTransaction, instantAnswer, safeToSpend, walletCounts } from '@/utils/safe-to-spend'
 import { useListWallets } from '@/queries/user/wallet/wallets'
 import { useListCategories } from '@/queries/user/category/categories'
+import { useActiveRules } from '@/queries/user/rule/rules'
+import { offerRule } from '@/components/page/rules/offer-rule'
+import { applyRules } from '@/utils/rules'
 import { useSettingsStore } from '@/store/settings-store'
 import { formatMoney } from '@/utils/formatter'
 import type { CreateTransactionData, TransactionType, UpdateTransactionData } from '@/types/transaction'
@@ -80,8 +84,9 @@ export function QuickAddSheet({
   const { data: walletsResponse } = useListWallets()
   const { data: categoriesResponse } = useListCategories()
   const { mutate: createTransaction, isPending: isCreating } = useCreateTransaction()
-  const { mutate: updateTransaction, isPending: isUpdating } = useUpdateTransaction()
-  const isPending = isCreating || isUpdating
+  const { updateWithUndo } = useTransactionUndo()
+  const [saving, setSaving] = useState(false)
+  const isPending = isCreating || saving
   const { inputs: safeInputs } = useSafeToSpendInputs()
 
   const wallets = useMemo(
@@ -96,6 +101,10 @@ export function QuickAddSheet({
   const [toWalletId, setToWalletId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [note, setNote] = useState('')
+  // Rules fill the category from the note until the user picks one themselves.
+  const rules = useActiveRules()
+  const [categoryTouched, setCategoryTouched] = useState(false)
+  const [ruleCategoryId, setRuleCategoryId] = useState<string | null>(null)
   const [date, setDate] = useState('')
   const [feeOn, setFeeOn] = useState(false)
   const [feeText, setFeeText] = useState('')
@@ -111,6 +120,8 @@ export function QuickAddSheet({
     setToWalletId(source?.toWalletId ?? '')
     setCategoryId(source?.categoryId ?? '')
     setNote(source?.description ?? '')
+    setCategoryTouched(false)
+    setRuleCategoryId(null)
     setDate(toDateInput(source?.date))
     const fee = source?.serviceFee ?? 0
     setFeeOn(fee > 0)
@@ -178,6 +189,28 @@ export function QuickAddSheet({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open])
 
+  /** New transactions only: a matching rule picks the category, and stops once you pick one yourself. */
+  const changeNote = (value: string) => {
+    setNote(value)
+    if (isEdit || categoryTouched || type === 'transfer') return
+    const { categoryId: fromRule } = applyRules(rules, { description: value, type })
+    if (fromRule && visibleCategories.some((c) => String(c._id ?? c.id) === fromRule)) {
+      setCategoryId(fromRule)
+      setRuleCategoryId(fromRule)
+    } else if (ruleCategoryId && categoryId === ruleCategoryId) {
+      // The note no longer matches the rule that picked it.
+      setCategoryId('')
+      setRuleCategoryId(null)
+    }
+  }
+
+  /** The user changed a category that was already set (by a rule, or on a saved transaction): offer a rule. */
+  const maybeOfferRule = (description: string, before: string | null | undefined) => {
+    if (type === 'transfer' || !categoryId || !before || before === categoryId) return
+    const categoryName = visibleCategories.find((c) => String(c._id ?? c.id) === categoryId)?.name
+    offerRule({ description, type, categoryId, categoryName, rules })
+  }
+
   const selectWallet = (id: string) => {
     setWalletId(id)
     if (toWalletId === id) setToWalletId('')
@@ -190,7 +223,7 @@ export function QuickAddSheet({
 
     const categoryName = visibleCategories.find((c) => String(c._id ?? c.id) === categoryId)?.name
     const description = note.trim() || (type === 'transfer' ? 'Transfer' : categoryName || (type === 'income' ? 'Income' : 'Expense'))
-    const finish = (message: string) => {
+    const finish = (message: string | null) => {
       if (!isEdit) {
         try {
           window.localStorage.setItem(LAST_WALLET_KEY, walletId)
@@ -198,7 +231,7 @@ export function QuickAddSheet({
           /* remembering the wallet is a convenience only */
         }
       }
-      toast.success(message)
+      if (message) toast.success(message)
       onClose()
       onSuccess?.()
     }
@@ -219,10 +252,15 @@ export function QuickAddSheet({
         toWalletId: type === 'transfer' ? toWalletId : undefined,
         affectsBalance: !keepBalance,
       }
-      updateTransaction(update, {
-        onSuccess: () => finish('Changes saved'),
-        onError: (error) => console.error('Error updating transaction:', error),
-      })
+      // Saved with Undo (and Redo) in the toast instead of a plain "Changes saved".
+      setSaving(true)
+      updateWithUndo(transaction, update)
+        .then(() => {
+          finish(null)
+          maybeOfferRule(description, transaction.categoryId)
+        })
+        .catch((error) => console.error('Error updating transaction:', error))
+        .finally(() => setSaving(false))
       return
     }
 
@@ -260,7 +298,11 @@ export function QuickAddSheet({
       return instantAnswer(safeToSpend(after), (n) => formatMoney(n, currency))
     })()
     createTransaction(payload, {
-      onSuccess: () => finish(answer ? `Saved! ${answer}` : 'Saved!'),
+      onSuccess: () => {
+        finish(answer ? `Saved! ${answer}` : 'Saved!')
+        // A rule picked one category and the user chose another.
+        maybeOfferRule(description, ruleCategoryId)
+      },
       onError: (error) => console.error('Error creating transaction:', error),
     })
   }
@@ -401,7 +443,10 @@ export function QuickAddSheet({
                           key={id}
                           type="button"
                           data-selected={categoryId === id}
-                          onClick={() => setCategoryId(categoryId === id ? '' : id)}
+                          onClick={() => {
+                            setCategoryTouched(true)
+                            setCategoryId(categoryId === id ? '' : id)
+                          }}
                           className={chip(categoryId === id)}
                         >
                           {category.name}
@@ -418,7 +463,7 @@ export function QuickAddSheet({
                 id="quick-add-note"
                 type="text"
                 value={note}
-                onChange={(event) => setNote(event.target.value)}
+                onChange={(event) => changeNote(event.target.value)}
                 placeholder="Add a note (optional)"
                 aria-label="Note"
                 className="min-w-0 flex-1 rounded-full border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"

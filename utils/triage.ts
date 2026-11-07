@@ -1,8 +1,9 @@
 import { matchCategory, parseTransactionText } from '@/utils/transaction-parser'
+import { applyRules, type Rule } from '@/utils/rules'
 
 /**
- * Picks a category to suggest for an uncategorized transaction: the category you used most for the
- * same note before, otherwise what the chat parser reads from the note. Runs offline on loaded data.
+ * Picks a category to suggest for an uncategorized transaction: a rule you set, else the category
+ * you used most for the same note before, otherwise what the chat parser reads from the note. Runs offline on loaded data.
  */
 export type TriageCategory = { id: string; name: string; type?: string }
 export type TriageHistory = { description?: string | null; categoryId?: string | null; type?: string }
@@ -18,9 +19,13 @@ export const noteKey = (note?: string | null) =>
 export function suggestCategory(
   txn: { description?: string | null; type?: string },
   history: TriageHistory[],
-  categories: TriageCategory[]
-): { category: TriageCategory; reason: 'history' | 'note' } | null {
+  categories: TriageCategory[],
+  rules: Rule[] = []
+): { category: TriageCategory; reason: 'rule' | 'history' | 'note' } | null {
   const usable = categories.filter((c) => !c.type || !txn.type || c.type === txn.type)
+  const ruled = applyRules(rules, { description: txn.description, type: txn.type })
+  const fromRule = ruled.categoryId && usable.find((c) => c.id === ruled.categoryId)
+  if (fromRule) return { category: fromRule, reason: 'rule' }
   const key = noteKey(txn.description)
   if (key) {
     const counts = new Map<string, number>()

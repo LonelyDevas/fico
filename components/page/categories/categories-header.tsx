@@ -1,6 +1,7 @@
 'use client'
 
-import { Plus, Search, Filter } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { BarChart3, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -38,10 +39,13 @@ export function CategoriesHeader({
             onChange={(e) => onSearchChange(e.target.value)}
           />
         </div>
-        <Button variant="outline" className="flex items-center gap-2 rounded-full">
-          <Filter className="w-4 h-4" />
-          Filter
-        </Button>
+        <Link
+          to="/statistics#categories"
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-semibold text-primary shadow-ios hover:border-primary/50"
+        >
+          <BarChart3 className="h-4 w-4" />
+          See insights
+        </Link>
       </div>
     </div>
   )

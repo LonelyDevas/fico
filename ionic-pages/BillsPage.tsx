@@ -233,6 +233,7 @@ export default function BillsPage() {
       <IonContent className="bg-background text-foreground">
         <main className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:px-8">
           <ManageHeader
+            statsHref="/statistics#bills-total"
             eyebrow="What is coming up"
             title="Bills & Income"
             addLabel="New Entry"

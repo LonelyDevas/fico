@@ -8,7 +8,7 @@
     "predev": "node scripts/build-sw.mjs && node scripts/copy-ocr-assets.mjs && node scripts/build-local-schema.mjs",
     "dev": "next dev --webpack",
     "lint": "eslint .",
-    "test:offline": "node scripts/test-categories.mjs && tsx scripts/test-engine.mts && tsx scripts/test-affects-balance.mts && tsx scripts/test-lending.mts && tsx scripts/test-sync.mts && tsx scripts/test-import-csv.mts && tsx scripts/test-transaction-parser.mts && tsx scripts/test-safe-to-spend.mts && tsx scripts/test-notification-parser.mts && tsx scripts/test-forecast.mts && tsx scripts/test-triage.mts && tsx scripts/test-budget-plans.mts",
+    "test:offline": "node scripts/test-categories.mjs && tsx scripts/test-engine.mts && tsx scripts/test-affects-balance.mts && tsx scripts/test-lending.mts && tsx scripts/test-sync.mts && tsx scripts/test-import-csv.mts && tsx scripts/test-transaction-parser.mts && tsx scripts/test-safe-to-spend.mts && tsx scripts/test-notification-parser.mts && tsx scripts/test-forecast.mts && tsx scripts/test-triage.mts && tsx scripts/test-budget-plans.mts && tsx scripts/test-rules.mts && tsx scripts/test-undo.mts",
     "start": "next start",
     "cap:sync": "cap sync",
     "cap:open:android": "cap open android",

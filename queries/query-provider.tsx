@@ -6,6 +6,7 @@ import { CelebrationHost } from "@/components/celebration-dialog"
 import { useSupabaseAuthSync } from "@/store/auth-store"
 import { onLocalDataChanged } from "@/lib/local/status"
 import { SyncStatusBadge } from "@/components/sync-status"
+import { RuleSheetHost } from "@/components/page/rules/rule-sheet"
 
 export default function Providers({ children }: { children: ReactNode }) {
   // Reads and writes hit the on-device database, which works without a connection, so TanStack
@@ -24,6 +25,7 @@ export default function Providers({ children }: { children: ReactNode }) {
       <AppToaster />
       <CelebrationHost />
       <SyncStatusBadge />
+      <RuleSheetHost />
     </QueryClientProvider>
   )
 }

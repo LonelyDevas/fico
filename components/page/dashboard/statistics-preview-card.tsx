@@ -29,7 +29,7 @@ export function StatisticsPreviewCard({ period, walletId }: PreviewProps) {
             <ChartPie className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Statistics Preview</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Insights preview</p>
             <h3 className="mt-1 text-base font-semibold text-foreground">See your top spending categories at a glance</h3>
             <p className="mt-1 text-sm text-muted-foreground">A compact preview of the largest categories for the selected period.</p>
           </div>
@@ -39,7 +39,7 @@ export function StatisticsPreviewCard({ period, walletId }: PreviewProps) {
           to="/statistics"
           className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          View full statistics
+          See insights
           <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
